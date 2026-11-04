@@ -1,0 +1,53 @@
+From 1ccf33792282febdde0e3b4de8738d51ae11d0cd Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 30 Jul 2026 21:13:04 +0800
+Subject: [PATCH] feat(logo): set backlight after show logo
+
+Change-Id: Iadapt-0004-cvi-alios-backlight
+
+diff --git a/components/cvi_platform/media/src/media_logo.c b/components/cvi_platform/media/src/media_logo.c
+index 04515049..81d7d3fa 100644
+--- a/components/cvi_platform/media/src/media_logo.c
++++ b/components/cvi_platform/media/src/media_logo.c
+@@ -2,6 +2,7 @@
+ #include <stdio.h>
+ #include <ulog/ulog.h>
+ #include <unistd.h>
++#include <drv/pwm.h>
+ 
+ #include "cvi_snd.h"
+ #include "cvi_sys.h"
+@@ -331,6 +332,19 @@ void CVI_Media_RegisterBacklightCtl(media_backlight_cb cb)
+     g_backlight_cb = cb;
+ }
+ 
++/* 默认 backlight 控制回调：直接驱动 PWM_6 (bank 1, channel 0) */
++static void _media_backlight_default_cb(void)
++{
++    csi_pwm_t pwm;
++    int bank = 1, channel = 0;
++    uint32_t period_ns = 40000; /* 40us */
++    uint32_t duty_ns = 24000;    /* 24us, 60% */
++    csi_pwm_init(&pwm, bank); /* bank 1 */
++    csi_pwm_out_stop(&pwm, channel); /* channel 0 */
++    csi_pwm_out_config(&pwm, channel, period_ns, duty_ns, PWM_POLARITY_HIGH);
++    csi_pwm_out_start(&pwm, channel);
++}
++
+ int CVI_Media_Vdec_Logo(void)
+ {
+     CVI_S32 s32Ret = CVI_SUCCESS;
+@@ -345,6 +359,10 @@ int CVI_Media_Vdec_Logo(void)
+     VO_VIDEO_LAYER_ATTR_S stLayerAttr = {0};
+     bool backlight_status = false;
+ 
++    /* 若上层未注册 backlight 回调，使用默认 PWM 直驱回调 */
++    if (!g_backlight_cb)
++        CVI_Media_RegisterBacklightCtl(_media_backlight_default_cb);
++
+     s32Ret = CVI_VB_Init();
+     if (s32Ret != CVI_SUCCESS) {
+         printf("vb init error");
+-- 
+2.25.1
+

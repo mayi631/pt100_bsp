@@ -1,0 +1,62 @@
+From 3d327f6468b38ca0e236e1a83effdad83f3be286 Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 30 Jul 2026 20:43:55 +0800
+Subject: [PATCH] feat: add panel LY030BXMS, ic:7701s
+
+Change-Id: Iadapt-ly030bxms-cvi-mpi-sample
+---
+ sample_app/panel/sample_panel.c |  9 +++++++++
+ sample_app/panel/sample_panel.h |  1 +
+ 2 files changed
+
+Change-Id: Icfb3821250b6e9614918709d32ec920f45ec0fa3
+
+diff --git a/sample_app/panel/sample_panel.c b/sample_app/panel/sample_panel.c
+index 963bef9..49c56ff 100644
+--- a/sample_app/panel/sample_panel.c
++++ b/sample_app/panel/sample_panel.c
+@@ -60,6 +60,7 @@ typedef enum {
+ 	DSI_PANEL_ST7701,
+ 	DSI_PANEL_ST7701_480x640,
+ 	DSI_PANEL_ST7703,
++	DSI_PANEL_LY030BXMS,
+ 	LVDS_PANEL_LCM185X56,
+ 	I80_PANEL_ST7789V3_HW_MCU_240x320_60FPS,
+ 	BT_PANEL_PT1000K_BT656_1280x720_25FPS_74M,
+@@ -136,6 +137,7 @@ static char *s_panel_model_type_arr[] = {
+ 	"ST7701",
+ 	"ST7701_480x640",
+ 	"ST7703",
++	"LY030BXMS",
+ 	"LCM185X56",
+ 	"ST7789V3_HW_MCU_RGB565_240x320_60FPS",
+ 	"BT_PANEL_PT1000K_BT656_1280x720_25FPS_74M",
+@@ -559,6 +561,13 @@ void SAMPLE_SET_PANEL_DESC(void)
+ 		g_panel_desc.stdsicfg.dsi_init_cmds = dsi_init_cmds_dsi_st7703_640x480_NULL_2lane_60fps;
+ 		g_panel_desc.stdsicfg.dsi_init_cmds_size = ARRAY_SIZE(dsi_init_cmds_dsi_st7703_640x480_NULL_2lane_60fps);
+ 		break;
++	case DSI_PANEL_LY030BXMS:
++		g_panel_desc.panel_type = PANEL_MODE_DSI;
++		g_panel_desc.stdsicfg.dev_cfg = (struct combo_dev_cfg_s *)&dev_cfg_dsi_ly030bxms_480x640_NULL_2lane_60fps;
++		g_panel_desc.stdsicfg.hs_timing_cfg = &hs_timing_cfg_dsi_ly030bxms_480x640_NULL_2lane_60fps;
++		g_panel_desc.stdsicfg.dsi_init_cmds = dsi_init_cmds_dsi_ly030bxms_480x640_NULL_2lane_60fps;
++		g_panel_desc.stdsicfg.dsi_init_cmds_size = ARRAY_SIZE(dsi_init_cmds_dsi_ly030bxms_480x640_NULL_2lane_60fps);
++		break;
+ 	case DSI_PANEL_HX8399_1080P:
+ 		g_panel_desc.panel_type = PANEL_MODE_DSI;
+ 		g_panel_desc.stdsicfg.dev_cfg = (struct combo_dev_cfg_s *)&dev_cfg_dsi_hx8399_1080x1920_NULL_4lane_60fps;
+diff --git a/sample_app/panel/sample_panel.h b/sample_app/panel/sample_panel.h
+index bdaaa70..40970e0 100644
+--- a/sample_app/panel/sample_panel.h
++++ b/sample_app/panel/sample_panel.h
+@@ -30,6 +30,7 @@ extern "C" {
+ #include "dsi_hx8399_1080x1920_NULL_4lane_60fps.h"
+ #include "dsi_gm8775c_1920x1080_NULL_4lane_60fps.h"
+ #include "dsi_lt9611_multi_NULL_4lane_60fps.h"
++#include "dsi_ly030bxms_480x640_NULL_2lane_60fps.h"
+ #include "lvds_lcm185x56_NULL_NULL_NULL.h"
+ #include "i80_st7789v3_240x320_NULL_60fps_hw_mcu.h"
+ #include "bt656_pt1000k_NULL_NULL_NULL.h"
+-- 
+2.25.1
+

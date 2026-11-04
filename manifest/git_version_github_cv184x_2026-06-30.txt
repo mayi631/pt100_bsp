@@ -1,0 +1,56 @@
+project_name: build
+commit_id: e03852de9ff307cd4ef5cd24a5f9a6be9a74416e build: weekly rls 2026.06.30
+
+project_name: fsbl
+commit_id: 8590f103263e1aba50f78ac0e5e862cf9756f474 fsbl: weekly rls 2026.06.30
+
+project_name: u-boot-2021.10
+commit_id: 85d2d6c9448eb7364ac1ddef83ff0ba93561a4ff u-boot-2021.10: weekly rls 2026.06.30
+
+project_name: linux_5.10
+commit_id: 79534ab146b75a5b7fe6f3cdfdd2c74fe3ed3997 linux_5.10: weekly rls 2026.06.30
+
+project_name: osdrv
+commit_id: 87fcddce5657eaaaed5f2eee825fe3d332cde821 osdrv: weekly rls 2026.06.30
+
+project_name: ramdisk
+commit_id: 1721be50d3c50c298356834982fc2e31cfa99275 ramdisk: weekly rls 2026.06.30
+
+project_name: oss
+commit_id: a9b8282e46bcacb02cf2592c81ac4d5a58cb8e05 [fix](oss): add sqlite.tar.gz
+
+project_name: cvi_mpi
+commit_id: 95e159ec4a46f0ab998fa580eb70faeb185156f6 cvi_mpi: weekly rls 2026.06.30
+
+project_name: SensorSupportList
+commit_id: f0632e35be5dcaa69302b2bd269df91d57740756 SensorSupportList: weekly rls 2026.06.30
+
+project_name: PanelSupportList
+commit_id: fa4ee91583013b93268358af58a63b57e7ebb1b4 PanelSupportList: weekly rls 2026.06.30
+
+project_name: isp_tuning
+commit_id: 36ee3808d2a9ae957cebbf1a0e561de4e0ce8710 isp_tuning: weekly rls 2026.06.30
+
+project_name: ive
+commit_id: b8166b022154efc4dc44941913449dd13b694ec0 ive: weekly rls 2025.11.03
+
+project_name: tdl_sdk
+commit_id: bf5a0de3eededc2e156827373c812f753dd04ce7 [fix] cv184x supports seg motion detection
+
+project_name: cvi_rtsp
+commit_id: ba88f18f56be95cb2457fa0a9b246e0240238d0d cvi_rtsp: weekly rls 2025.11.03
+
+project_name: isp-tool-daemon
+commit_id: 69163ad6160b292e1513c835d9ed79814e86d77c isp-tool-daemon: weekly rls 2026.06.30
+
+project_name: cvi_alios_open
+commit_id: bc1ab8a7b68f118c2dca6fc05f79d6b4efc4b224 cvi_alios: weekly rls 2026.06.30
+
+project_name: libsophon
+commit_id: 14b31d3677bbd69d40c7892e6aa70b9a1e0678df libsophon: weekly rls 2026.06.30
+
+project_name: osal
+commit_id: 345d773440228ffd26f3b42e38cfa51b94103d90 osal: weekly rls 2026.03.24
+
+project_name: rt-thread
+commit_id: 5647ea16fac87e91acebb0923ad1b9981cb33ba0 rt-thread: weekly rls 2026.06.30

@@ -1,0 +1,142 @@
+From 9837f292466f689e1115cf0a44b8be70b1c71907 Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 30 Jul 2026 20:55:59 +0800
+Subject: [PATCH] feat: usb download auto poweroff instead of reboot
+
+Change-Id: Iadapt-0019-u-boot-poweroff
+
+diff --git a/cmd/cvi_update.c b/cmd/cvi_update.c
+index dd82767196..8000db616e 100644
+--- a/cmd/cvi_update.c
++++ b/cmd/cvi_update.c
+@@ -10,6 +10,7 @@
+ #ifdef CONFIG_NAND_SUPPORT
+ #include <nand.h>
+ #endif
++#include <mmio.h>
+ #include "cvi_update.h"
+ #ifdef CONFIG_SD_BURNLOGO
+ #include <cvitek/logo_data.h>
+@@ -535,6 +536,20 @@ static int _uart_update(void)
+ 	return ret;
+ }
+ 
++static void ai_led_lightup(void)
++{
++	/*
++	 * Set GPIOB[27] to output high level when starting upgrade
++	 * Pinmux: 0x03001130 = 3 (GPIO mode)
++	 * GPIO Base: 0x03021000
++	 * Port B Data Register (DR): 0x03021000
++	 * Port B Direction Register (DDR): 0x03021004
++	 */
++	mmio_write_32(0x03001130, 3);           // Set pinmux to GPIO mode
++	mmio_write_32(0x03021004, (1 << 27) | mmio_read_32(0x03021004));   // Set GPIOB[27] as output
++	mmio_write_32(0x03021000, (1 << 27) | mmio_read_32(0x03021000));   // Set GPIOB[27] output high
++}
++
+ static int do_cvi_update(struct cmd_tbl *cmdtp, int flag, int argc,
+ 			 char *const argv[])
+ {
+@@ -547,6 +562,7 @@ static int do_cvi_update(struct cmd_tbl *cmdtp, int flag, int argc,
+ 			run_command("env default -a", 0);
+ 			ret = _uart_update();
+ 		} else if (update_magic == SD_UPDATE_MAGIC) {
++			ai_led_lightup();
+ 			run_command("env default -a", 0);
+ 			ret = _storage_update(sd_dl);
+ 		} else if (update_magic == USB_UPDATE_MAGIC) {
+@@ -556,6 +572,7 @@ static int do_cvi_update(struct cmd_tbl *cmdtp, int flag, int argc,
+ 				return -1;
+ 			}
+ 			#endif
++			ai_led_lightup();
+ 			run_command("env default -a", 0);
+ 			usb_pid = in_be32(UBOOT_PID_SRAM_ADDR);
+ 			usb_pid = bcd2hex4(usb_pid);
+@@ -596,6 +613,32 @@ static int do_cvi_update(struct cmd_tbl *cmdtp, int flag, int argc,
+ 	if (ret == 0)
+ 		run_command("efusew FASTBOOT", 0);
+ #endif
++
++	// 烧录完后自动关机
++	{
++		mdelay(2 * 1000); // wait 2s to ensure write complete
++		// 走 poweroff 流程
++		mmio_write_32(0x050260c0, 0x1);
++		while (mmio_read_32(0x050260c0) != 0x1)
++			;
++		mmio_write_32(0x05025004, 0xab18);
++		mmio_write_32(0x03001098, 0); // 切pinmux为 PWR_BUTTON1
++		mmio_write_32(0x03001090, 0); // 切pinmux为 PWR_WAKEUP0
++
++		mmio_write_32(0x05027084, 0); // 锁定pinmux为 PWR_BUTTON1
++		mmio_write_32(0x0502708c, 0); // 锁定pinmux为 PWR_WAKEUP0，防止poweroff时被重置
++
++		mmio_write_32(0x050250ac, 0x2); // 设定 poweroff 时 rtc 不复位
++		mmio_write_32(0x050260d0, 0x3); // 不自动开机
++		mmio_write_32(0x050260bc, 0x1100); // RTC_EN_PWR_WAKEUP 设定唤醒源为 PWR_BUTTON1、PWR_WAKEUP0
++		// 设定触发模式，PWR_BUTTON1 为低电平触发，
++		// PWR_WAKEUP0 为上升沿触发（默认是高电平触发，会导致poweroff下去，立马又开机）
++		mmio_write_32(0x0502606c, 0x16);
++
++		while (1) {
++			mmio_write_32(0x05025008, 0x10001);
++		}
++	}
+ 	return ret;
+ }
+ 
+diff --git a/drivers/cvi_usb/utask/cv181x/usb_tty.c b/drivers/cvi_usb/utask/cv181x/usb_tty.c
+index a0fdfb8da3..9cbc4fa79d 100644
+--- a/drivers/cvi_usb/utask/cv181x/usb_tty.c
++++ b/drivers/cvi_usb/utask/cv181x/usb_tty.c
+@@ -1079,13 +1079,38 @@ static void bulkOutCmplMain(struct usb_ep *ep, struct usb_request *req)
+ 		run_command("efusew FASTBOOT", 0);
+ #endif
+ 		// software_root_reset(); // Mark_to_do
+-		mmio_setbits_32(TOP_BASE + 0x8, 0x4); // wdt reset enable
+-		mmio_write_32(WATCHDOG_BASE + 0x4,
+-			      0x20); // Set timeout range reigster
+-		mmio_write_32(WATCHDOG_BASE + 0xc,
+-			      0x76); // Counter restart register
+-		mmio_write_32(WATCHDOG_BASE,
+-			      0x13); // Response mode and enable WDT
++		// mmio_setbits_32(TOP_BASE + 0x8, 0x4); // wdt reset enable
++		// mmio_write_32(WATCHDOG_BASE + 0x4,
++		// 	      0x20); // Set timeout range reigster
++		// mmio_write_32(WATCHDOG_BASE + 0xc,
++		// 	      0x76); // Counter restart register
++		// mmio_write_32(WATCHDOG_BASE,
++		// 	      0x13); // Response mode and enable WDT
++
++		{
++			mdelay(2 * 1000); // wait 2s to ensure write complete
++			// 走 poweroff 流程
++			mmio_write_32(0x050260c0, 0x1);
++			while (mmio_read_32(0x050260c0) != 0x1)
++				;
++			mmio_write_32(0x05025004, 0xab18);
++			mmio_write_32(0x03001098, 0); // 切pinmux为 PWR_BUTTON1
++			mmio_write_32(0x03001090, 0); // 切pinmux为 PWR_WAKEUP0
++
++			mmio_write_32(0x05027084, 0); // 锁定pinmux为 PWR_BUTTON1
++			mmio_write_32(0x0502708c, 0); // 锁定pinmux为 PWR_WAKEUP0，防止poweroff时被重置
++
++			mmio_write_32(0x050250ac, 0x2); // 设定 poweroff 时 rtc 不复位
++			mmio_write_32(0x050260d0, 0x3); // 不自动开机
++			mmio_write_32(0x050260bc, 0x1100); // RTC_EN_PWR_WAKEUP 设定唤醒源为 PWR_BUTTON1、PWR_WAKEUP0
++			// 设定触发模式，PWR_BUTTON1 为低电平触发，
++			// PWR_WAKEUP0 为上升沿触发（默认是高电平触发，会导致poweroff下去，立马又开机）
++			mmio_write_32(0x0502606c, 0x16);
++
++			while (1) {
++				mmio_write_32(0x05025008, 0x10001);
++			}
++		}
+ 		break;
+ 
+ 	default:
+-- 
+2.25.1
+

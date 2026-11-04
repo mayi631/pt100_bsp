@@ -1,0 +1,75 @@
+#!/bin/sh
+${CVI_SHOPTS}
+#
+# Start firmware
+#
+export USERDATAPATH=/mnt/data/
+export SYSTEMPATH=/system/
+export MVKTLIBPATH=/mnt/data/bin/ai_model/
+case "$1" in
+  start)
+        cvi_pinmux -w JTAG_CPU_TCK/PWM_6
+        echo "init mpp system..."
+        if [ -f $SYSTEMPATH/ko/loadsystemko.sh ]; then
+                sh $SYSTEMPATH/ko/loadsystemko.sh
+        fi
+
+        echo "Starting app..."
+        if [ -f $USERDATAPATH/auto.sh ]; then
+                usleep 30000
+                . $USERDATAPATH/auto.sh &
+                exit 1
+        fi
+        if [ -f $SYSTEMPATH/auto.sh ]; then
+                usleep 30000
+                . $SYSTEMPATH/auto.sh &
+        fi
+
+        if [ -f $MVKTLIBPATH/lib/libbmlib.so ]; then
+                mv $MVKTLIBPATH/lib/libbmlib.so $MVKTLIBPATH/lib/libbmlib.so.0 $MVKTLIBPATH/lib/libbmrt.so $MVKTLIBPATH/lib/libbmrt.so.1.0 $MVKTLIBPATH/lib/libkt_animal.so $MVKTLIBPATH/lib/libmodel_combine.so /usr/lib/
+        fi
+        
+        # reset fr sensor
+        echo 474 > /sys/class/gpio/export
+        echo out > /sys/class/gpio/gpio474/direction
+        echo 0 > /sys/class/gpio/gpio474/value
+        echo 474 > /sys/class/gpio/unexport
+        # reset bg sensor
+        echo 355 > /sys/class/gpio/export
+        echo out > /sys/class/gpio/gpio355/direction
+        echo 0 > /sys/class/gpio/gpio355/value
+        echo 355 > /sys/class/gpio/unexport
+
+        # record alios log
+        # alios_cli -m 1 -c 0 2>&1 | logger -t alios -p local7.info &
+
+        # run sophcam
+        if [ -f $USERDATAPATH/bin/sophcam ]; then
+                chmod +x $USERDATAPATH/bin/sophcam
+                $USERDATAPATH/bin/sophcam </dev/null 2>&1 | logger -t sophcam &
+        fi
+
+        devmem 0x030010A4 32 1
+        # devmem 0x030010A8 32 1
+
+        devmem 0x030010A8 32 6
+        devmem 0x030010AC 32 6
+        devmem 0x030000B4 32 0x82
+        # run wpa_supplicant after app start
+        wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B
+        # ifconfig wlan0 down
+	wifi-daemon -l info | logger -t wifi &
+        sleep 4
+        # /etc/test_res_capture_cycle.sh &
+        /etc/cpu_temp_monitor.sh &
+        ;;
+  stop)
+        ;;
+  restart|reload)
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

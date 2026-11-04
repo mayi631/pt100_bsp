@@ -1,0 +1,76 @@
+From a7e0883e5558ac1a6dc08d8f22943007e8c55b8d Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 30 Jul 2026 20:57:49 +0800
+Subject: [PATCH] fix: SD burning cannot poweroff
+
+Change-Id: Iadapt-0025-sd-poweroff
+
+diff --git a/cmd/cvi_update.c b/cmd/cvi_update.c
+index 8000db616e..d1a4c952f8 100644
+--- a/cmd/cvi_update.c
++++ b/cmd/cvi_update.c
+@@ -618,25 +618,12 @@ static int do_cvi_update(struct cmd_tbl *cmdtp, int flag, int argc,
+ 	{
+ 		mdelay(2 * 1000); // wait 2s to ensure write complete
+ 		// 走 poweroff 流程
+-		mmio_write_32(0x050260c0, 0x1);
++		mmio_write_32(0x050260c0, 0x1); // 使能软件请求下电
+ 		while (mmio_read_32(0x050260c0) != 0x1)
+ 			;
+-		mmio_write_32(0x05025004, 0xab18);
+-		mmio_write_32(0x03001098, 0); // 切pinmux为 PWR_BUTTON1
+-		mmio_write_32(0x03001090, 0); // 切pinmux为 PWR_WAKEUP0
+-
+-		mmio_write_32(0x05027084, 0); // 锁定pinmux为 PWR_BUTTON1
+-		mmio_write_32(0x0502708c, 0); // 锁定pinmux为 PWR_WAKEUP0，防止poweroff时被重置
+-
+-		mmio_write_32(0x050250ac, 0x2); // 设定 poweroff 时 rtc 不复位
+-		mmio_write_32(0x050260d0, 0x3); // 不自动开机
+-		mmio_write_32(0x050260bc, 0x1100); // RTC_EN_PWR_WAKEUP 设定唤醒源为 PWR_BUTTON1、PWR_WAKEUP0
+-		// 设定触发模式，PWR_BUTTON1 为低电平触发，
+-		// PWR_WAKEUP0 为上升沿触发（默认是高电平触发，会导致poweroff下去，立马又开机）
+-		mmio_write_32(0x0502606c, 0x16);
+-
++		mmio_write_32(0x05025004, 0xab18); // 解锁对 RTC_CTRL0(0x05025008) 的读写
+ 		while (1) {
+-			mmio_write_32(0x05025008, 0x10001);
++			mmio_write_32(0x05025008, 0x10001); // 请求下电
+ 		}
+ 	}
+ 	return ret;
+diff --git a/drivers/cvi_usb/utask/cv181x/usb_tty.c b/drivers/cvi_usb/utask/cv181x/usb_tty.c
+index 9cbc4fa79d..1cdfcfe9f7 100644
+--- a/drivers/cvi_usb/utask/cv181x/usb_tty.c
++++ b/drivers/cvi_usb/utask/cv181x/usb_tty.c
+@@ -1090,25 +1090,12 @@ static void bulkOutCmplMain(struct usb_ep *ep, struct usb_request *req)
+ 		{
+ 			mdelay(2 * 1000); // wait 2s to ensure write complete
+ 			// 走 poweroff 流程
+-			mmio_write_32(0x050260c0, 0x1);
++			mmio_write_32(0x050260c0, 0x1); // 使能软件请求下电
+ 			while (mmio_read_32(0x050260c0) != 0x1)
+ 				;
+-			mmio_write_32(0x05025004, 0xab18);
+-			mmio_write_32(0x03001098, 0); // 切pinmux为 PWR_BUTTON1
+-			mmio_write_32(0x03001090, 0); // 切pinmux为 PWR_WAKEUP0
+-
+-			mmio_write_32(0x05027084, 0); // 锁定pinmux为 PWR_BUTTON1
+-			mmio_write_32(0x0502708c, 0); // 锁定pinmux为 PWR_WAKEUP0，防止poweroff时被重置
+-
+-			mmio_write_32(0x050250ac, 0x2); // 设定 poweroff 时 rtc 不复位
+-			mmio_write_32(0x050260d0, 0x3); // 不自动开机
+-			mmio_write_32(0x050260bc, 0x1100); // RTC_EN_PWR_WAKEUP 设定唤醒源为 PWR_BUTTON1、PWR_WAKEUP0
+-			// 设定触发模式，PWR_BUTTON1 为低电平触发，
+-			// PWR_WAKEUP0 为上升沿触发（默认是高电平触发，会导致poweroff下去，立马又开机）
+-			mmio_write_32(0x0502606c, 0x16);
+-
++			mmio_write_32(0x05025004, 0xab18); // 解锁对 RTC_CTRL0(0x05025008) 的读写
+ 			while (1) {
+-				mmio_write_32(0x05025008, 0x10001);
++				mmio_write_32(0x05025008, 0x10001); // 请求下电
+ 			}
+ 		}
+ 		break;
+-- 
+2.25.1
+

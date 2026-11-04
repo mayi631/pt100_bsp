@@ -1,0 +1,36 @@
+From 037ceec41c1fa492d545a64f7a30ed32444da83d Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 30 Jul 2026 21:13:38 +0800
+Subject: [PATCH] fix(logo): backlight adjust & show logo slower
+
+Change-Id: Iadapt-0020-cvi-alios-backlight
+
+diff --git a/components/cvi_platform/media/src/media_logo.c b/components/cvi_platform/media/src/media_logo.c
+index 81d7d3fa..39263657 100644
+--- a/components/cvi_platform/media/src/media_logo.c
++++ b/components/cvi_platform/media/src/media_logo.c
+@@ -338,10 +338,10 @@ static void _media_backlight_default_cb(void)
+     csi_pwm_t pwm;
+     int bank = 1, channel = 0;
+     uint32_t period_ns = 40000; /* 40us */
+-    uint32_t duty_ns = 24000;    /* 24us, 60% */
++    uint32_t duty_ns = 37647;    /* 37.6us, 对应 240/255 */
+     csi_pwm_init(&pwm, bank); /* bank 1 */
+     csi_pwm_out_stop(&pwm, channel); /* channel 0 */
+-    csi_pwm_out_config(&pwm, channel, period_ns, duty_ns, PWM_POLARITY_HIGH);
++    csi_pwm_out_config(&pwm, channel, period_ns, duty_ns, PWM_POLARITY_LOW);
+     csi_pwm_out_start(&pwm, channel);
+ }
+ 
+@@ -486,7 +486,7 @@ int CVI_Media_Vdec_Logo(void)
+             return s32Ret;
+         }
+ 
+-        usleep(80*1000);
++        usleep(100*1000);
+         s32Ret = CVI_VO_SendLogoFromIon(0, 0, &pstFrameInfo, 1000);
+         if (s32Ret != CVI_SUCCESS) {
+             //goto RETRY_GET_FRAME;
+-- 
+2.25.1
+
