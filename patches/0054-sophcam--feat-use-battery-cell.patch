@@ -1,0 +1,613 @@
+From ca7d06e16898b7bffb8bd1a6c78e11cf80825cd3 Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Thu, 11 Jun 2026 10:56:14 +0800
+Subject: [PATCH] feat:use battery cell
+
+Change-Id: I7f3bba3bfcd761a55810eca10ef03a276d028b72
+---
+ .../param/ini2bin/src/param_ini_devmng.c      |   7 +-
+ .../inicfgs/dc100_turnkey/config_devmng.ini   |   5 +-
+ .../inicfgs/dc309_turnkey/config_devmng.ini   |   5 +-
+ applications/manager/include/gaugemng.h       |   1 -
+ applications/manager/src/dev/gaugemng.c       | 409 +++++++++---------
+ 5 files changed, 204 insertions(+), 223 deletions(-)
+
+diff --git a/applications/dashcam/param/ini2bin/src/param_ini_devmng.c b/applications/dashcam/param/ini2bin/src/param_ini_devmng.c
+index 60c6353..064946c 100644
+--- a/applications/dashcam/param/ini2bin/src/param_ini_devmng.c
++++ b/applications/dashcam/param/ini2bin/src/param_ini_devmng.c
+@@ -168,18 +168,15 @@ static int32_t PARAM_LoadGaugeInfo(const char *file, GAUGEMNG_CFG_S *Gauge)
+ {
+     long int LowLevel = 0;
+     long int UltraLowLevel = 0;
+-    long int ADCChannelVbat = 0;
+     long int USBChargerDetectGPIO = 0;
+ 
+     LowLevel = INI_GetLong("gaugemng", "LowLevel", 0, file);
+     UltraLowLevel = INI_GetLong("gaugemng", "UltraLowLevel", 0, file);
+-    ADCChannelVbat = INI_GetLong("gaugemng", "ADCChannelVbat", 0, file);
+     USBChargerDetectGPIO = INI_GetLong("gaugemng", "USBChargerDetectGPIO", 0, file);
+-    printf("LowLevel = %ld UltraLowLevel = %ld, ADCChannelVbat=%ld, USBChargerDetectGPIO=%ld\n", LowLevel, UltraLowLevel, ADCChannelVbat, USBChargerDetectGPIO);
++    printf("LowLevel = %ld UltraLowLevel = %ld, USBChargerDetectGPIO=%ld\n", LowLevel, UltraLowLevel, USBChargerDetectGPIO);
+ 
+     Gauge->s32LowLevel = LowLevel;
+     Gauge->s32UltraLowLevel = UltraLowLevel;
+-    Gauge->s32ADCChannelVbat = ADCChannelVbat;
+     Gauge->s32USBChargerDetectGPIO = USBChargerDetectGPIO;
+ 
+     return 0;
+@@ -405,7 +402,7 @@ void print_param_devmng(const PARAM_DEVMNG_S *devmng)
+     printf("GaugeCfg:\n");
+     printf("s32LowLevel: %d%%\n", devmng->GaugeCfg.s32LowLevel);
+     printf("s32UltraLowLevel: %d%%\n", devmng->GaugeCfg.s32UltraLowLevel);
+-    printf("s32ADCChannelVbat: %d\n", devmng->GaugeCfg.s32ADCChannelVbat);
++
+     printf("s32USBChargerDetectGPIO: %d\n", devmng->GaugeCfg.s32USBChargerDetectGPIO);
+     printf("stFlashLed:\n");
+     printf("GpioNum: %d\n", devmng->FlashLed.GpioNum);
+diff --git a/applications/dashcam/param/inicfgs/dc100_turnkey/config_devmng.ini b/applications/dashcam/param/inicfgs/dc100_turnkey/config_devmng.ini
+index efa9c14..1443378 100644
+--- a/applications/dashcam/param/inicfgs/dc100_turnkey/config_devmng.ini
++++ b/applications/dashcam/param/inicfgs/dc100_turnkey/config_devmng.ini
+@@ -24,9 +24,8 @@ key_idx0           = 0
+ key_idx1           = 1
+ 
+ [gaugemng]
+-LowLevel           = 81
+-UltraLowLevel      = 78
+-ADCChannelVbat     = 14; 待改
++LowLevel           = 15
++UltraLowLevel      = 1
+ USBChargerDetectGPIO  = 360 ; HAL_GPIOE_08
+ 
+ ; wifi
+diff --git a/applications/dashcam/param/inicfgs/dc309_turnkey/config_devmng.ini b/applications/dashcam/param/inicfgs/dc309_turnkey/config_devmng.ini
+index 60672ed..83ea29e 100644
+--- a/applications/dashcam/param/inicfgs/dc309_turnkey/config_devmng.ini
++++ b/applications/dashcam/param/inicfgs/dc309_turnkey/config_devmng.ini
+@@ -24,9 +24,8 @@ key_idx0           = 0
+ key_idx1           = 1
+ 
+ [gaugemng]
+-LowLevel           = 85
+-UltraLowLevel      = 83
+-ADCChannelVbat     = 14; PWRSAR.VIN5
++LowLevel           = 46
++UltraLowLevel      = 28
+ USBChargerDetectGPIO  = 360 ; HAL_GPIOE_08
+ 
+ ; wifi
+diff --git a/applications/manager/include/gaugemng.h b/applications/manager/include/gaugemng.h
+index 90a509d..c83516c 100644
+--- a/applications/manager/include/gaugemng.h
++++ b/applications/manager/include/gaugemng.h
+@@ -29,7 +29,6 @@ typedef enum _BAT_LEVEL_E {
+ typedef struct GAUGEMNG_CFG_S {
+     int32_t s32LowLevel; /**< in percent */
+     int32_t s32UltraLowLevel; /**< in percent */
+-    int32_t s32ADCChannelVbat; /**< ADC channel of VBAT */
+     int32_t s32USBChargerDetectGPIO; /**< GPIO number for USB charger detection */
+ } GAUGEMNG_CFG_S;
+ 
+diff --git a/applications/manager/src/dev/gaugemng.c b/applications/manager/src/dev/gaugemng.c
+index f026397..a28a334 100644
+--- a/applications/manager/src/dev/gaugemng.c
++++ b/applications/manager/src/dev/gaugemng.c
+@@ -1,17 +1,15 @@
+-#include <stdio.h>
+-#include <stdlib.h>
++#include "gaugemng.h"
++#include "cvi_log.h"
++#include "osal.h"
++#include "sysutils_eventhub.h"
++#include "usb.h"
++#include <pthread.h>
+ #include <stdbool.h>
+ #include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
+ #include <string.h>
+-#include <pthread.h>
+ #include <sys/prctl.h>
+-#include "osal.h"
+-#include "cvi_log.h"
+-#include "gaugemng.h"
+-#include "hal_adc.h"
+-#include "usb.h"
+-#include "sysutils_eventhub.h"
+-#include "hal_gpio.h"
+ 
+ #ifdef __cplusplus
+ #if __cplusplus
+@@ -23,99 +21,78 @@ static bool s_bGAUGEMNGInitState = 0;
+ static pthread_mutex_t s_GAUGEMNGMutex = PTHREAD_MUTEX_INITIALIZER;
+ static pthread_t s_GAUGEMNGCheckId;
+ static bool s_bGAUGEMNGCheckRun;
+-static uint8_t histoy_ret = 100;
+ 
+ /** macro define */
+-#define GAUGEMNG_CHECK_INTERVAL (1)	 /**< gauge check interval, unit s */
++#define GAUGEMNG_CHECK_INTERVAL (1) /**< gauge check interval, unit s */
+ #define GAUGEMNG_LOWLEVEL_RESET (20) /**< gauge level interval, percent */
+ 
+-/* Vinput/Vref x 4095;Vref=1.5v */
+-#define REFERENCE_VOLTAGE (1500)
+-#define ADC_RESOLUTION (4096) // 12bit
++/** sysfs path for kernel adc-simple-battery driver */
++#define BATTERY_SYSFS_CAPACITY "/sys/class/power_supply/battery-adc/capacity"
+ 
+ /** gaugemng information */
+ typedef struct tagGAUGEMNG_INFO_S {
+-	int32_t s32Level;
+-	int32_t s32LastLevel;
+-	int32_t last_index;
+-	bool bLowLevelState;
+-	bool bUltraLowLevelState;
+-	bool bCharge;
+-	bool bLastCharge;
+-	GAUGEMNG_CFG_S stCfg;
++    int32_t s32Level;
++    int32_t s32LastLevel;
++    int32_t last_index;
++    bool bLowLevelState;
++    bool bUltraLowLevelState;
++    bool bCharge;
++    bool bLastCharge;
++    GAUGEMNG_CFG_S stCfg;
+ } GAUGEMNG_INFO_S;
+ 
+ static GAUGEMNG_INFO_S s_stGAUGEMNGInfo;
+ 
+-static int32_t _GAUGEMNG_GetAverage(int32_t *battery_array, int32_t num)
++static int32_t GAUGEMNG_InParmValidChck(const GAUGEMNG_CFG_S* stCfg)
+ {
+-	int32_t min = battery_array[0];
+-	int32_t max = battery_array[0];
+-	int32_t sum = 0;
+-	int32_t index;
+-
+-	for (index = 0; index < num; index++) {
+-		if (battery_array[index] > max) {
+-			max = battery_array[index];
+-		} else if (battery_array[index] < min) {
+-			min = battery_array[index];
+-		}
+-		sum += battery_array[index];
+-	}
+-
+-	return (num > 3 ? ((sum - max - min) / (num - 2)) : (sum / num));
+-}
+-
+-static int32_t GAUGEMNG_InParmValidChck(const GAUGEMNG_CFG_S *stCfg)
+-{
+-	/** parm check */
+-	if (NULL == stCfg) {
+-		CVI_LOGE("GAUGEMNG_InParmValidChck fail\n");
+-		return -1;
+-	}
++    /** parm check */
++    if (NULL == stCfg) {
++        CVI_LOGE("GAUGEMNG_InParmValidChck fail\n");
++        return -1;
++    }
+ 
+-	if (stCfg->s32LowLevel > 100 || stCfg->s32UltraLowLevel <= 0 || stCfg->s32UltraLowLevel > stCfg->s32LowLevel) {
+-		CVI_LOGE("stCfg parm error\n");
+-		return -1;
+-	}
+-	return 0;
++    if (stCfg->s32LowLevel > 100 || stCfg->s32UltraLowLevel < 0 || stCfg->s32UltraLowLevel > stCfg->s32LowLevel) {
++        CVI_LOGE("stCfg parm error\n");
++        return -1;
++    }
++    return 0;
+ }
+ 
+-static int32_t GAUGEMNG_InternalParmInit(const GAUGEMNG_CFG_S *pstCfg)
++static int32_t GAUGEMNG_InternalParmInit(const GAUGEMNG_CFG_S* pstCfg)
+ {
+-	if (NULL == pstCfg) {
+-		CVI_LOGE("GAUGEMNG_InParmValidChck fail\n");
+-		return -1;
+-	}
++    if (NULL == pstCfg) {
++        CVI_LOGE("GAUGEMNG_InParmValidChck fail\n");
++        return -1;
++    }
+ 
+-	s_stGAUGEMNGInfo.s32Level = 0;
+-	s_stGAUGEMNGInfo.s32LastLevel = 0;
+-	s_stGAUGEMNGInfo.last_index = 0;
+-	s_stGAUGEMNGInfo.bLowLevelState = 0;
+-	s_stGAUGEMNGInfo.bUltraLowLevelState = 0;
++    s_stGAUGEMNGInfo.s32Level = 100;
++    s_stGAUGEMNGInfo.s32LastLevel = 0;
++    s_stGAUGEMNGInfo.last_index = 0;
++    s_stGAUGEMNGInfo.bLowLevelState = 0;
++    s_stGAUGEMNGInfo.bUltraLowLevelState = 0;
+ 
+-	memcpy(&s_stGAUGEMNGInfo.stCfg, pstCfg, sizeof(GAUGEMNG_CFG_S));
++    memcpy(&s_stGAUGEMNGInfo.stCfg, pstCfg, sizeof(GAUGEMNG_CFG_S));
+ 
+-	return 0;
++    return 0;
+ }
+ 
+-static void GAUGEMNG_UltraLowLevelCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
++static void GAUGEMNG_UltraLowLevelCheck(GAUGEMNG_INFO_S* pstGaugemngInfo)
+ {
+-	EVENT_S stEvent;
+-	if (0 == pstGaugemngInfo->bUltraLowLevelState) {
+-		if (pstGaugemngInfo->s32Level <= pstGaugemngInfo->stCfg.s32UltraLowLevel) {
+-			memset(&stEvent, '\0', sizeof(stEvent));
+-			stEvent.arg1 = pstGaugemngInfo->s32Level;
+-			stEvent.topic = EVENT_GAUGEMNG_LEVEL_ULTRALOW;
+-			EVENTHUB_Publish(&stEvent);
+-			CVI_LOGW("battery level ultralow event\n");
+-			pstGaugemngInfo->bUltraLowLevelState = 1;
+-		}
+-	}
+-	return;
++    EVENT_S stEvent;
++    if (0 == pstGaugemngInfo->bUltraLowLevelState) {
++        if (pstGaugemngInfo->s32Level <= pstGaugemngInfo->stCfg.s32UltraLowLevel && pstGaugemngInfo->bCharge == 0) {
++            memset(&stEvent, '\0', sizeof(stEvent));
++            stEvent.arg1 = pstGaugemngInfo->s32Level;
++            stEvent.topic = EVENT_GAUGEMNG_LEVEL_ULTRALOW;
++            EVENTHUB_Publish(&stEvent);
++            CVI_LOGW("battery level ultralow event\n");
++            pstGaugemngInfo->bUltraLowLevelState = 1;
++        }
++    }
++    return;
+ }
+ 
+-static void GAUGEMNG_LowLevelCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
++static void GAUGEMNG_LowLevelCheck(GAUGEMNG_INFO_S* pstGaugemngInfo)
+ {
+ 	EVENT_S stEvent;
+ 
+@@ -138,24 +115,41 @@ static void GAUGEMNG_LowLevelCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
+ 			CVI_LOGW("battery level restore normal\n");
+ 
+ 			pstGaugemngInfo->bLowLevelState = 0;
+-			pstGaugemngInfo->bUltraLowLevelState = 0;
+-		}
+-	}
+-	return;
++                        pstGaugemngInfo->bUltraLowLevelState = 0;
++                }
++        }
++        return;
+ }
+ 
+-static int32_t get_usb_charging_by_io(uint32_t *value)
++#define USB_VBUS_PATH "/proc/cviusb/vbus"
++
++static int32_t get_usb_charging_by_io(uint32_t* value)
+ {
+-	int32_t ret = 0;
+-	ret = HAL_GPIO_Get_Value(s_stGAUGEMNGInfo.stCfg.s32USBChargerDetectGPIO, value);
+-	if (ret) {
+-		CVI_LOGI("HAL_GPIO_Get_Value error\n");
+-		return -1;
+-	}
+-	return 0;
++    FILE* fp;
++    char buf[16] = { 0 };
++
++    fp = fopen(USB_VBUS_PATH, "r");
++    if (!fp) {
++        CVI_LOGI("open %s fail\n", USB_VBUS_PATH);
++        return -1;
++    }
++
++    if (fgets(buf, sizeof(buf), fp) == NULL) {
++        CVI_LOGI("read %s fail\n", USB_VBUS_PATH);
++        fclose(fp);
++        return -1;
++    }
++    fclose(fp);
++
++    if (strncmp(buf, "high", 4) == 0) {
++        *value = USB_STATE_INSERT;
++    } else {
++        *value = USB_STATE_OUT;
++    }
++    return 0;
+ }
+ 
+-static void GAUGEMNG_ChargeStateChangeCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
++static void GAUGEMNG_ChargeStateChangeCheck(GAUGEMNG_INFO_S* pstGaugemngInfo)
+ {
+ 	EVENT_S stEvent;
+ 
+@@ -183,12 +177,12 @@ int32_t GAUGENBG_IdexChangeCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
+         if (pstGaugemngInfo->bCharge == 1) {
+             index = 3;
+         } else {
+-            if (s32Level > 87 && s32Level <= 100) {
+-                index = BAT_LEVEL_FULL;
+-            } else if (s32Level > 85 && s32Level <= 87) {
+-                index = BAT_LEVEL_MID;
+-            } else if (s32Level > 0 && s32Level <= 85) {
+-                index = BAT_LEVEL_LOW;
++            if (s32Level > 72) {
++                index = 0;
++            } else if (s32Level > 46 && s32Level <= 72) {
++                index = 1;
++            } else if (s32Level > 28 && s32Level <= 46) {
++                index = 2;
+             }
+         }
+ 
+@@ -221,92 +215,94 @@ static int32_t GAUGEMNG_ChargeStateCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
+ 	}
+ 
+ 	uint32_t charge = 0;
+-	get_usb_charging_by_io(&charge);
+-	// CVI_LOGE("charge = %d\n", charge);
+-	if (USB_STATE_INSERT == charge) {
+-		bCharge = 1;
+-	} else if (USB_STATE_OUT == charge) {
+-		bCharge = 0;
+-		// OSAL_FS_System("poweroff -f");
+-	}
+-	if (pstGaugemngInfo->bCharge != bCharge) {
+-		pstGaugemngInfo->bCharge = bCharge;
+-		GAUGEMNG_LevelChangeCheck(pstGaugemngInfo);
+-		// GAUGEMNG_ChargeStateChangeCheck(pstGaugemngInfo);
+-		pstGaugemngInfo->bLastCharge = bCharge;
+-	}
+-	return 0;
++        get_usb_charging_by_io(&charge);
++        // CVI_LOGE("charge = %d\n", charge);
++        if (USB_STATE_INSERT == charge) {
++            bCharge = 1;
++        } else if (USB_STATE_OUT == charge) {
++            bCharge = 0;
++            // OSAL_FS_System("poweroff -f");
++        }
++        if (pstGaugemngInfo->bCharge != bCharge) {
++            CVI_LOGI("charge state changed: %d -> %d\n", pstGaugemngInfo->bCharge, bCharge);
++            pstGaugemngInfo->bCharge = bCharge;
++            GAUGEMNG_LevelChangeCheck(pstGaugemngInfo);
++            // GAUGEMNG_ChargeStateChangeCheck(pstGaugemngInfo);
++            pstGaugemngInfo->bLastCharge = bCharge;
++        }
++        return 0;
+ }
+ 
+-/*get vbattery capacity adc percentage*/
++/*get battery capacity percentage from kernel adc-simple-battery driver via sysfs*/
+ int32_t GAUGEMNG_GetPercentage(void)
+ {
+-	int32_t ret, vbat, index;
+-	int32_t vbat_sample[10] = {0};
+-	int32_t count = ARRAY_SIZE(vbat_sample);
+-
+-	for (index = 0; index < count; index++) {
+-		ret = HAL_ADC_GetValue(s_stGAUGEMNGInfo.stCfg.s32ADCChannelVbat);
+-		if (-1 == ret) {
+-			CVI_LOGE("HAL_ADC_GetValue fail\n");
+-			break;
+-		}
+-		// CVI_LOGE("[S]:ret = %d, index = %d\n", ret, index);
+-		vbat_sample[index] = ret;
+-	}
+-	vbat = _GAUGEMNG_GetAverage(vbat_sample, count);
++    FILE* fp;
++    int32_t capacity = -1;
+ 
+-	ret = vbat * 100 / ADC_RESOLUTION;
+-	if (ret - histoy_ret > 2) {
+-		histoy_ret = ret;
+-	}
+-	ret = ret < histoy_ret ? ret : histoy_ret;
+-	histoy_ret = ret;
+-	// CVI_LOGE("[S]:ret = %d, history_ret = %d, vbat = %d\n", ret, histoy_ret, vbat);
+-	return ret;
++    fp = fopen(BATTERY_SYSFS_CAPACITY, "r");
++    if (!fp) {
++        CVI_LOGE("open battery sysfs fail: %s\n", BATTERY_SYSFS_CAPACITY);
++        return -1;
++    }
++
++    if (fscanf(fp, "%d", &capacity) != 1) {
++        CVI_LOGE("read battery capacity fail\n");
++        fclose(fp);
++        return -1;
++    }
++
++    fclose(fp);
++
++    if (capacity < 0 || capacity > 100) {
++        CVI_LOGE("invalid battery capacity: %d\n", capacity);
++        return -1;
++    }
++
++    CVI_LOGD("battery capacity from sysfs: %d%%\n", capacity);
++    return capacity;
+ }
+ 
+-static int32_t GAUGEMNG_LevelCheck(GAUGEMNG_INFO_S *pstGaugemngInfo)
++static int32_t GAUGEMNG_LevelCheck(GAUGEMNG_INFO_S* pstGaugemngInfo)
+ {
+-	int32_t s32Level = 0;
++    int32_t s32Level = 0;
+ 
+-	if (NULL == pstGaugemngInfo) {
+-		CVI_LOGE("error the charge state\n");
+-		return -1;
+-	}
++    if (NULL == pstGaugemngInfo) {
++        CVI_LOGE("error the charge state\n");
++        return -1;
++    }
+ 
+-	s32Level = GAUGEMNG_GetPercentage();
+-	if (-1 == s32Level || s32Level > 100) {
+-		CVI_LOGE("CVI_HAL_GAUGE_GetLevel fail\n");
+-                return -1;
+-        }
++    s32Level = GAUGEMNG_GetPercentage();
++    if (-1 == s32Level || s32Level > 100) {
++        CVI_LOGE("get battery percentage fail, ret=%d\n", s32Level);
++        return -1;
++    }
+ 
+-        // GAUGEMNG_ChargeStateCheck(pstGaugemngInfo);
+-        GAUGEMNG_LowLevelCheck(pstGaugemngInfo);
++    CVI_LOGD("battery level: cur=%d last=%d charge=%d\n",
++        s32Level, pstGaugemngInfo->s32Level, pstGaugemngInfo->bCharge);
+ 
+-        if (pstGaugemngInfo->s32Level != s32Level) {
+-            pstGaugemngInfo->s32Level = s32Level;
+-            GAUGEMNG_LevelChangeCheck(pstGaugemngInfo);
+-            GAUGEMNG_UltraLowLevelCheck(pstGaugemngInfo);
+-            pstGaugemngInfo->s32LastLevel = s32Level;
+-        }
+-        return 0;
++    GAUGEMNG_ChargeStateCheck(pstGaugemngInfo);
++    GAUGEMNG_LowLevelCheck(pstGaugemngInfo);
++
++    if (pstGaugemngInfo->s32Level != s32Level) {
++        // CVI_LOGI("battery level changed: %d%% -> %d%% (charge=%d)\n",
++        //     pstGaugemngInfo->s32Level, s32Level, pstGaugemngInfo->bCharge);
++        pstGaugemngInfo->s32Level = s32Level;
++        GAUGEMNG_LevelChangeCheck(pstGaugemngInfo);
++        GAUGEMNG_UltraLowLevelCheck(pstGaugemngInfo);
++        pstGaugemngInfo->s32LastLevel = s32Level;
++    }
++    return 0;
+ }
+ 
+ static void* GAUGEMNG_LevelCheckThread(void* pData)
+ {
+-    uint32_t cnt_s = 0;
+     /** Set Task Name */
+     prctl(PR_SET_NAME, "GAUGE_LEVEL_CHECK", 0, 0, 0);
+ 
+     while (s_bGAUGEMNGCheckRun) {
+-        if (cnt_s > 3) {
+-            GAUGEMNG_LevelCheck(&s_stGAUGEMNGInfo);
+-            cnt_s = 0;
+-        }
+-        GAUGEMNG_ChargeStateCheck(&s_stGAUGEMNGInfo);
+-        usleep(1 * 1000 * 1000);
+-        cnt_s++;
++        GAUGEMNG_LevelCheck(&s_stGAUGEMNGInfo);
++        // GAUGEMNG_ChargeStateCheck(&s_stGAUGEMNGInfo);
++        usleep(4 * 1000 * 1000);
+     }
+ 
+     CVI_LOGW("gauge check thread exit\n");
+@@ -358,40 +354,38 @@ int32_t GAUGEMNG_Init(const GAUGEMNG_CFG_S *pstCfg)
+ 		CVI_LOGE("already been started\n");
+ 		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+ 		return -1;
+-	}
+-
+-	s32Ret = GAUGEMNG_InParmValidChck(pstCfg);
+-	if (0 != s32Ret) {
+-		CVI_LOGE("GAUGEMNG_InParmValidChck Failed\n");
+-		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-		return -1;
+-	}
+-
+-	s32Ret = HAL_ADC_Init();
+-	if (0 != s32Ret) {
+-		CVI_LOGE("HI_HAL_GAUGE_Init Failed\n");
+-		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-		return -1;
+-	}
++        }
+ 
+-	GAUGEMNG_InternalParmInit(pstCfg);
++        s32Ret = GAUGEMNG_InParmValidChck(pstCfg);
++        if (0 != s32Ret) {
++            CVI_LOGE("GAUGEMNG_InParmValidChck Failed\n");
++            MUTEX_UNLOCK(s_GAUGEMNGMutex);
++            return -1;
++        }
+ 
+-	/* Create gauge Check Task */
+-	s_bGAUGEMNGCheckRun = 1;
+-	s32Ret = pthread_create(&s_GAUGEMNGCheckId, NULL, GAUGEMNG_LevelCheckThread, NULL);
+-	if (0 != s32Ret) {
+-		CVI_LOGE("Create GaugeCheck Thread Fail!\n");
+-		HAL_ADC_Deinit();
+-		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-		return -1;
+-	}
++        GAUGEMNG_InternalParmInit(pstCfg);
++
++        CVI_LOGI("gaugemng init: sysfs=%s low=%d%% ultralow=%d%% vbus=%s\n",
++            BATTERY_SYSFS_CAPACITY,
++            pstCfg->s32LowLevel,
++            pstCfg->s32UltraLowLevel,
++            USB_VBUS_PATH);
++
++        /* Create gauge Check Task */
++        s_bGAUGEMNGCheckRun = 1;
++        s32Ret = pthread_create(&s_GAUGEMNGCheckId, NULL, GAUGEMNG_LevelCheckThread, NULL);
++        if (0 != s32Ret) {
++            CVI_LOGE("Create GaugeCheck Thread Fail!\n");
++            MUTEX_UNLOCK(s_GAUGEMNGMutex);
++            return -1;
++        }
+ 
+-	s_bGAUGEMNGInitState = 1;
+-	MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-	return 0;
++        s_bGAUGEMNGInitState = 1;
++        MUTEX_UNLOCK(s_GAUGEMNGMutex);
++        return 0;
+ }
+ 
+-int32_t GAUGEMNG_GetBatteryLevel(uint8_t *ps32Level)
++int32_t GAUGEMNG_GetBatteryLevel(uint8_t* ps32Level)
+ {
+ 	int32_t s32Ret = 0;
+ 	if (NULL == ps32Level) {
+@@ -451,26 +445,19 @@ int32_t GAUGEMNG_DeInit(void)
+ 		CVI_LOGE("gaugemng no init\n");
+ 		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+ 		return -1;
+-	}
+-	s_bGAUGEMNGCheckRun = 0;
+-	s32Ret = pthread_join(s_GAUGEMNGCheckId, NULL);
+-	if (0 != s32Ret) {
+-		CVI_LOGE("Join GaugeCheck Thread Fail!\n");
+-		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-		return -1;
+-	}
++        }
++        s_bGAUGEMNGCheckRun = 0;
++        s32Ret = pthread_join(s_GAUGEMNGCheckId, NULL);
++        if (0 != s32Ret) {
++            CVI_LOGE("Join GaugeCheck Thread Fail!\n");
++            MUTEX_UNLOCK(s_GAUGEMNGMutex);
++            return -1;
++        }
+ 
+-	/** Close hal ADC */
+-	s32Ret = HAL_ADC_Deinit();
+-	if (0 != s32Ret) {
+-		CVI_LOGE("HAL_ADC_Deinit Fail!\n");
+-		MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-		return -1;
+-	}
+-	s_bGAUGEMNGInitState = 0;
++        s_bGAUGEMNGInitState = 0;
+ 
+-	MUTEX_UNLOCK(s_GAUGEMNGMutex);
+-	return 0;
++        MUTEX_UNLOCK(s_GAUGEMNGMutex);
++        return 0;
+ }
+ 
+ #ifdef __cplusplus
+-- 
+2.25.1
+

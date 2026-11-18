@@ -1,0 +1,34 @@
+From 1e226dcadaeacd70e8f70e9faa5ce4c587985fa0 Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Mon, 28 Sep 2026 18:36:07 +0800
+Subject: [PATCH] Revert "[fix](flash):Revert the num of NAND blocks stored fip
+ to original values."
+
+This reverts commit 75d88b7e3594bd531df412cfddf5210ef27c0a1d.
+---
+ cmd/cvi_sd_update_spinand_v3.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/cmd/cvi_sd_update_spinand_v3.c b/cmd/cvi_sd_update_spinand_v3.c
+index 361c011d38..1d848b256b 100644
+--- a/cmd/cvi_sd_update_spinand_v3.c
++++ b/cmd/cvi_sd_update_spinand_v3.c
+@@ -63,12 +63,13 @@
+ /* system vector related definitions */
+ #define SPI_NAND_BASE_DATA_BACKUP_COPY (2)
+ 
+-#define MAX_BLOCK_CNT			(20)
++#define MAX_BLOCK_CNT			(26)
+ /* system vector relocated definitions end here */
+ 
+ #define SPI_NAND_FIP_RSVD_BLOCK_COUNT MAX_BLOCK_CNT // Reserved blocks for FIP.
+ 
+-#define BACKUP_FIP_START_POSITION	9
++#define BACKUP_FIP_START_POSITION	13
++
+ #define BIT(nr)			(1UL << (nr))
+ 
+ #define PTR_INC(base, offset) (void *)((uint8_t *)(base) + (offset))
+-- 
+2.25.1
+
