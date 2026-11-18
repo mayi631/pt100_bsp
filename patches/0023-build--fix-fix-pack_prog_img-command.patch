@@ -1,0 +1,159 @@
+From b55e595210800f86db4c6b225d004b992c68f959 Mon Sep 17 00:00:00 2001
+From: "cheng.tan" <cheng.tan@sophgo.com>
+Date: Fri, 27 Feb 2026 17:29:22 +0800
+Subject: [PATCH] fix: fix pack_prog_img command
+
+[description ]:NA
+[root   cause]:NA
+[JIRA      ID]:CV184XSDK-1108
+[chip project]:CV184X
+[side effects]:NA
+[Affected *.ko/*.so/*.a] :NA
+
+Change-Id: I312163594b58eac8a56a63df4aab5c4854d9b42e
+---
+ .gitignore                             |  1 +
+ common_functions.sh                    | 42 ++++++++++++++++++--------
+ tools/common/image_tool/pack_images.py | 30 ++++++++++++++----
+ 3 files changed, 54 insertions(+), 19 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 9a3170a3..c494eb8b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -11,3 +11,4 @@ __pycache__
+ !/tools/common/update_vendor/update_vendor.c
+ tools/common/update_misc/update_misc
+ tools/common/update_misc/update_misc.o
++tools/common/spinand_tool/fip_maker/fip_maker
+diff --git a/common_functions.sh b/common_functions.sh
+index 796303f0..c6f0638d 100644
+--- a/common_functions.sh
++++ b/common_functions.sh
+@@ -267,24 +267,40 @@ function pack_upgrade
+ function pack_prog_img
+ {(
+   local tmp_dir
++  local nandid=$1
++
++  CHIP_ARCH_LOWER=$(echo "${CHIP_ARCH}" | tr A-Z a-z)
+   tmp_dir="$OUTPUT_DIR"/temp
+   mkdir -p "$tmp_dir"
+   rm -rf "${tmp_dir:?}/"*
++  # get fip filename from partition xml
++  fip_file=$(grep -oP 'label="fip"[^>]*file="\K[^"]+' "$FLASH_PARTITION_XML")
++
+   if [[ "$STORAGE_TYPE" = "spinand" ]]; then
+-    pushd "$SPINANDTOOL_PATH"/sv_tool
+-    make
+-    ./create_sv -c 5 -o "$tmp_dir"/sv.bin
++    if [ -z "$nandid" ]; then
++      echo -e "\e[31m nandid is required for spinand storage. Usage: pack_images <nandid>, nandid = 0x{DID/MID} ,such as 0x95c8 . \e[0m"
++      return 1
++    fi
++
++    cp "${OUTPUT_DIR}/rawimages/"* "${tmp_dir}/"
++    # get nand block size and page size from .config
++    read -r block_size page_size < <(awk -F= '
++        /^CONFIG_NANDFLASH_BLOCKSIZE=/{block=$2}
++        /^CONFIG_NANDFLASH_PAGESIZE=/{page=$2}
++        END{print block, page}
++      ' "$BUILD_PATH/.config")
++      print_notice "NANDID=$nandid, NANDFLASH_BLOCKSIZE=$block_size, NANDFLASH_PAGESIZE=$page_size"
++
++    # fip need to be processed by fip_maker, add nand info.
++    pushd "$SPINANDTOOL_PATH"/fip_maker
++    make || return "$?"
++    ./fip_maker "$page_size" "$nandid" "$OUTPUT_DIR/$fip_file" "$tmp_dir/$fip_file"
+     popd
+-    cp "$OUTPUT_DIR"/rawimages/*."$STORAGE_TYPE" "$tmp_dir"
+-    cp "$OUTPUT_DIR"/*.xml "$tmp_dir"
+-    cp "$OUTPUT_DIR"/fip.bin "$tmp_dir"
+-    # Tar images
+-    tar -caf "$OUTPUT_DIR"/prog_img.tar.gz -C "$tmp_dir" .
+-    # List images in tar
+-    tar -tzvf "$OUTPUT_DIR"/prog_img.tar.gz
+-  elif [[ "$STORAGE_TYPE" = "emmc" ]]; then
+-    cp "$OUTPUT_DIR"/fip.bin "$OUTPUT_DIR"/rawimages/
+-    python3 "$IMGTOOL_PATH"/pack_emmc_bin.py "$FLASH_PARTITION_XML" "$OUTPUT_DIR"/rawimages/ "$tmp_dir" -v
++
++    python3 $IMGTOOL_PATH/pack_images.py "$CHIP_ARCH_LOWER" "$FLASH_PARTITION_XML" "${OUTPUT_DIR}/rawimages/" "$tmp_dir/" -b "$block_size" 2>&1 | tee "$tmp_dir"/partition_info.txt
++  else
++    cp "${OUTPUT_DIR}/${fip_file}" "${OUTPUT_DIR}/rawimages/"
++    python3 $IMGTOOL_PATH/pack_images.py "$CHIP_ARCH_LOWER" "$FLASH_PARTITION_XML" "${OUTPUT_DIR}/rawimages/" "$tmp_dir/"
+   fi
+   # Tar images
+   tar -caf "$OUTPUT_DIR"/prog_img.tar.gz -C "$tmp_dir" .
+diff --git a/tools/common/image_tool/pack_images.py b/tools/common/image_tool/pack_images.py
+index 22861cad..11fb1683 100644
+--- a/tools/common/image_tool/pack_images.py
++++ b/tools/common/image_tool/pack_images.py
+@@ -18,7 +18,7 @@ SV_BLOCK_NUM = 4
+ BLOCK_SIZE_FOR_4K_NAND = 262144
+ 
+ global chip_list
+-chip_list = ["cv183x", "cv182x", "cv181x"]
++chip_list = ["cv184x","cv183x", "cv182x", "cv181x"]
+ 
+ 
+ def parse_Args():
+@@ -52,6 +52,12 @@ def parse_Args():
+     parser.add_argument(
+         "-v", "--verbose", help="increase output verbosity", action="store_true"
+     )
++    # Only print partition table, don't generate Data.bin
++    parser.add_argument(
++        "-p", "--print_partitions", help="only print partition table, don't generate Data.bin",
++        action="store_true"
++    )
++    
+     args = parser.parse_args()
+     if args.verbose:
+         logging.debug("Enable more verbose output")
+@@ -161,15 +167,15 @@ def genDataBin(
+                 f.seek(0)
+                 file_array.fromfile(f, file_size)
+             out.seek(p["offset"], 0)
+-            logging.info("Writing %s to pos %d" % (p["label"], p["offset"]))
++            logging.info("Writing %s to pos %d, block offset = %d " % (p["label"], p["offset"],p["offset"] // block_size))
+             file_array.tofile(out)
+             # for fip.bin of spi nand, we do a backup at 9th block
+             if i == 0 and storage_type == "spinand":
+                 out.seek(block_size * FIP_BACKUP_BLOCK_POS, 0)
+                 file_array.tofile(out)
+                 logging.info(
+-                    "do a backup for fip.bin at %d"
+-                    % (block_size * FIP_BACKUP_BLOCK_POS)
++                    "do a backup for fip.bin at %d, block offset = %d "
++                    % (block_size * FIP_BACKUP_BLOCK_POS, FIP_BACKUP_BLOCK_POS)
+                 )
+ 
+         # Only append 0xff when the partition is not the last partition.
+@@ -208,10 +214,22 @@ def main():
+     args = parse_Args()
+     xmlParser = XmlParser(args.xml)
+     parts = xmlParser.parse(args.images_path)
+-    out_path = path.join(args.output, "Data.bin")
+ 
+     storage_type = xmlParser.getStorage()
+-    logging.info("storage type is %s " % storage_type)
++    logging.info("storage type is %s" % storage_type)
++
++    if args.print_partitions:
++        for i, p in enumerate(parts):
++            file_name = p.get("file_name", "")
++            logging.info("Partition %d: %s(%s), pos=%d, block offset=%d" %
++                         (i, p.get("label", "unknown"), file_name, p.get("offset", 0), p.get("offset", 0) // args.block_size))
++            if storage_type == "spinand" and i == 0:
++                logging.info("FIP backup: pos=%d, block offset=%d" %
++                            (args.block_size * FIP_BACKUP_BLOCK_POS, FIP_BACKUP_BLOCK_POS))
++        return
++
++
++    out_path = path.join(args.output, "Data.bin")
+ 
+     with open(out_path, "wb") as out:
+         genDataBin(
+-- 
+2.25.1
+

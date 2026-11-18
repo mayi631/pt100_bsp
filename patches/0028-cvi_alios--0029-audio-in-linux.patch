@@ -1,0 +1,33 @@
+From 72ecf4a137602322d1c0eec4e52154e92d6f7343 Mon Sep 17 00:00:00 2001
+From: "song.yu" <song.yu@sophgo.com>
+Date: Wed, 15 Apr 2026 00:38:03 +0800
+Subject: [PATCH] fix(alios): audio in linux
+
+---
+ components/cvi_mmf_sdk/lib/libcvi_mw_audio.a | Bin 1780632 -> 1780632 bytes
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+
+diff --git a/components/cvi_mmf_sdk/lib/libcvi_mw_audio.a b/components/cvi_mmf_sdk/lib/libcvi_mw_audio.a
+index 6c46017394fff4370f19efa3052fbf4c292d0bbf..178e6919457e3e063ad79348b5dd73a4530de6d9 100644
+GIT binary patch
+delta 597
+zcmbPnJ!i)CoDE`J9Oh<*=0;|QrkmxsOcdd~$#Ps`n+vqV*1$x}HlMp5lLO~XU&q5E
+zzTMM>QPdSKHu>Cj@$I#pj7wADLSSX>j_(<Pm}$G?duGuBxZL)*c$Ouv;arG`ir%bm
+zjS*sTj|3&Q>(#T~@qvqhZP7f#`ZfbDv|Y}W%_JPog_u;>!)EFL7i(X4h7E|>ftUk`
+zIf0mK`?@pSBFb<jATMu!@Sgja3|y!k=u05x-M)^8ujC9|7_8FaCf~U|a3P3Cb*J%f
+z*PSNtcQITXtklCwkZ%QCXgknTd%R&>bBIn$J)w3>J>l(^dLpR`a5<oE@%FubBHQ=+
+ziHZingw3V{JtMyT;{s9BHn`Y!J#{gb2pAV)>h{2TvA-H<V!12Cu9~2UCEgWVtA{Gq
+ot_zG`T^@;}v*F?(zqAXikk~G;LNcrdF5I4{BDFnFMOup;04esdzW@LL
+
+delta 597
+zcmbPnJ!i)CoDE`J9A*}#W=0lf7Mta`Ocdd~$#Ps`n+vqV*1$zJpSvED1LsX&$HODO
+z-P46p)D<o^`P_B!?X{hZOH*M&mSAP=j_(<Pm}$G?duGuBxZL)*c$Ouv;arG`ir%bm
+zjS*sTj|3&Q>(#T~@qvqhZP7f#`ZfbDv|Y}W%_JPog_u;>!)EFL7i(X4h7E|>ftUk`
+zIf0mK`?@pSBFb<jATMu!@Sgja3|y!k=u05x-M)^8ujC9|7_8FaCf~U|a3P3Cb*J%f
+z*PSNtcQITXtklCwkZ%QCXgknTd%WRXh)zpAp>|6>;q8`sBB=^+IiPOw_Pu^0+xPm3
+ziUz@jrvp7BzWw6@QPVcK*mga2F_s887ZL`6^<sZD(8O|Ah+Q>76HB}+wpI@+W^MrW
+n3ow3lc_fa`hKqyz(k`$<V!OZ!$*>x@aC@GL)b>0TX)SgD14^?p
+
+-- 
+2.25.1
+

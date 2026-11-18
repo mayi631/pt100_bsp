@@ -23,12 +23,12 @@ int cvi_board_init(void)
         mmio_write_32(0x03009070, 0x606);
 
         /* AI_LED default choice */
-        PINMUX_CONFIG(PAD_ETH_RXP, XGPIOB_27);
+        PINMUX_CONFIG(PAD_ETH_RXP, PWM_15);
         /* CAM_LED */
-        // PINMUX_CONFIG(PWR_GPIO0, PWM_8);
-        /* USB chrg */
-        PINMUX_CONFIG(USB_VBUS_DET, XGPIOB_6);
+        PINMUX_CONFIG(PWR_GPIO0, PWR_GPIO_0);
 
+        /* 4G */
+        PINMUX_CONFIG(PWR_WAKEUP0, PWR_GPIO_6);         /* power source */
         PINMUX_CONFIG(SPK_EN, XGPIOA_15);               /* 4G_RESET_N */
 
         /* tp */
@@ -52,6 +52,13 @@ int cvi_board_init(void)
         PINMUX_CONFIG(SD1_D1, PWR_SD1_D1_VO34);
         PINMUX_CONFIG(SD1_D2, PWR_SD1_D2_VO33);
         PINMUX_CONFIG(SD1_D3, PWR_SD1_D3_VO32);
+
+        /* disable uart0 */
+        PINMUX_CONFIG(UART0_RX, XGPIOA_17);
+        PINMUX_CONFIG(UART0_TX, XGPIOA_16);
+
+        /* panel */
+        PINMUX_CONFIG(SPK_EN, XGPIOA_15); // LCD_RST
 
         return 0;
 }

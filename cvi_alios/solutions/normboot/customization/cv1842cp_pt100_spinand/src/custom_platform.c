@@ -3,13 +3,9 @@
 #include <pinctrl-mars.h>
 #include "cvi_type.h"
 #include "iic_recovery.h"
-#include <drv/adc.h>
 
 #define GPIO_PIN_MASK(_gpio_num) (1 << _gpio_num)
 
-void PWR_VBATCheck(void);
-
-int PLATFORM_ReadPwrAdc3(uint32_t *raw, uint32_t *mv);
 void _GPIOSetValue(u8 gpio_grp, u8 gpio_num, u8 level)
 {
 	csi_error_t ret;
@@ -84,8 +80,9 @@ static void _AudioPinmux(void)
 static void _UartPinmux()
 {
     // uart2 pinmux
-    PINMUX_CONFIG(PWR_GPIO0, UART2_TX);
-    PINMUX_CONFIG(PWR_GPIO1, UART2_RX);
+    PINMUX_CONFIG(UART2_TX, UART2_TX);
+    PINMUX_CONFIG(UART2_RX, UART2_RX);
+
     // uart1 pinmux
     // PINMUX_CONFIG(IIC0_SCL, UART1_TX);
     // PINMUX_CONFIG(IIC0_SDA, UART1_RX);
@@ -97,6 +94,11 @@ static void _UartPinmux()
 
 static void _SensorPinmux()
 {
+	// PWR_SEQ2 pinmux unlock
+	printf("PWR_SEQ2 pinmux unlock\n");
+	mmio_write_32(0x0502707C, 0x11);
+	PINMUX_CONFIG(PWR_SEQ2, PWR_GPIO_4); // sensor_RST
+
 	//Sensor Pinmux
 #if defined (CONFIG_CHIP_cv1811c) || defined (CONFIG_CHIP_cv1801c) || defined (CONFIG_CHIP_cv1812cp)
 	PINMUX_CONFIG(PAD_MIPI_TXP1, IIC2_SCL);
@@ -211,48 +213,14 @@ static void i2c1_recovery_config(void)
 	csi_iic_set_recovery_config(1, &i2c1_recovery);
 }
 
-/* RTC 唤醒源、强制重启配置
- * PT100 项目中，RTC唤醒源为 PWR_WAKEUP0，
- * PWR_BUTTON1 作为电源键，短按 PWR_BUTTON1 可强制重启。
- */
-void rtc_wakeup_config(void)
-{
-	/* pinmux 设置 */
-	mmio_write_32(0x05027084, 1); // 解除 pinmux 锁定，PWR_BUTTON1
-	mmio_write_32(0x0502708c, 1); // 解除 pinmux 锁定，PWR_WAKEUP0
-	mmio_write_32(0x03001098, 0); // 切pinmux为 PWR_BUTTON1
-	mmio_write_32(0x03001090, 0); // 切pinmux为 PWR_WAKEUP0
-	mmio_write_32(0x05027084, 0); // 锁定 pinmux，PWR_BUTTON1
-	mmio_write_32(0x0502708c, 0); // 锁定 pinmux，PWR_WAKEUP0
-
-	mmio_write_32(0x050250ac, 0x2); // 设定 poweroff 时 rtc 不复位
-	// mmio_write_32(0x050260d0, 0x3); // 不自动开机
-	mmio_write_32(0x050260bc, 0x100); // RTC_EN_PWR_WAKEUP 设定唤醒源为 PWR_WAKEUP0
-	// PWR_WAKEUP0 为上升沿触发（默认是高电平触发，会导致poweroff下去，立马又开机）
-	mmio_write_32(0x0502606c, 0x16);
-
-	/* 强制重启功能 */
-	mmio_write_32(0x05026004, 0x800000); // 这个默认值就是0x800000，但不设定一下，又起不来。
-	mmio_write_32(0x05026050, 0xdc780001); // 设定长按 PWR_BUTTON1 reset 去抖动时间，1s
-	mmio_write_32(0x050260b8, 0xdc78000b); // 使能强制重启功能
-}
-
 void PLATFORM_IoInit(void)
 {
 	//pinmux 切换接口
-	u_int32_t raw, mv;
-	if (PLATFORM_ReadPwrAdc3(&raw, &mv) == 0){
-		if (mv < 1042){
-			PWR_VBATCheck();
-		}
-	}
-
 	_UartPinmux();
 	_MipiRxPinmux();
 	_MipiTxPinmux();
 	_SensorPinmux();
 	_AudioPinmux();
-	rtc_wakeup_config();
 	#if (CONFIG_APP_DEBUG_JTAG == 1)
 	JTAG_PinmuxIn();
 	#endif
@@ -276,19 +244,15 @@ void PLATFORM_PowerOff(void)
 
 void _PanelPinmux(void)
 {
-	// PWR_SEQ1 pinmux unlock
-	// printf("PWR_SEQ1 pinmux unlock\n");
-	// mmio_write_32(0x05027078, 0x11);
-	// PINMUX_CONFIG(PWR_SEQ1, PWR_GPIO_3); // LCD_RST
-	PINMUX_CONFIG(SPK_EN, XGPIOA_15); // LCD_RST
+	// LCD_RESET SPK-EN
 	PINMUX_CONFIG(JTAG_CPU_TCK, PWM_6); // LCD_BL
 }
 
 // 检测是否是看门狗或reboot触发的开机
 static bool _IsRebootOrWatchdogWakeup(void)
 {
-    // bit26: REBOOT flag, bit27: WATCHDOG flag
-    return ((mmio_read_32(0x050260f8) >> 26) & 0x3) != 0;
+	// bit26: REBOOT flag, bit27: WATCHDOG flag
+	return ((mmio_read_32(0x050260f8) >> 26) & 0x3) != 0;
 }
 
 // 检测PWR_BUTTON1是否按下
@@ -356,7 +320,7 @@ int PLATFORM_PanelInit(void)
 	udelay(20 * 1000);
 	_GPIOSetValue(rst_port, rst_pin, 1);
 	udelay(20 * 1000);
-#elif CONFIG_DSI_LY030BXMS_480X640_NULL_2LANE_60FPS
+#elif CONFIG_PANEL_BJX2836F0
 	u8 rst_port = 0, rst_pin = 15;
 	_GPIOSetValue(rst_port, rst_pin, 1);
 	udelay(20 * 1000);
@@ -378,81 +342,4 @@ void PLATFORM_PanelBacklightCtl(int level)
 int PLATFORM_IrCutCtl(int duty)
 {
     return 0;
-}
-
-void PWR_VBATCheck(void)
-{
-	// 未按下电源键，走 poweroff 流程
-	mmio_write_32(0x050260c0, 0x1); // 使能软件请求下电
-	while (mmio_read_32(0x050260c0) != 0x1)
-		;
-	mmio_write_32(0x05025004, 0xab18); // 解锁对 RTC_CTRL0(0x05025008) 的读写
-	while (1)
-	{
-		mmio_write_32(0x05025008, 0x10001); // 请求下电
-	}
-}
-
-/*
- * 读取 PWR_ADC3 (PWR_VBAT_DET)
- *
- * PWR_ADC3 挂在 RTC 域 SARADC0 (chip_id=3, ch_id=3) 上。
- * 参考电压 VDD1.8A (1.8V)，12bit 分辨率。
- *
- * @param[out] raw   原始 ADC 值 (0~4095)
- * @param[out] mv    转换后的电压值 (mV)，可为 NULL
- * @return 0 成功，非 0 失败
- */
-int PLATFORM_ReadPwrAdc3(uint32_t *raw, uint32_t *mv)
-{
-	csi_adc_t adc;
-	int32_t value;
-	csi_error_t ret;
-
-	if (!raw)
-		return -1;
-
-	/* 1. Init ADC: chip 3 = rtc_adc0 */
-	ret = csi_adc_init(&adc, 3);
-	if (ret != CSI_OK) {
-		printf("[FAIL] csi_adc_init(rtc_adc0) failed: %d\n", ret);
-		return -1;
-	}
-
-	/* 2. Enable channel 2 (PWR_ADC3) */
-	ret = csi_adc_channel_enable(&adc, 3, true);
-	if (ret != CSI_OK) {
-		printf("[FAIL] csi_adc_channel_enable ch2 failed: %d\n", ret);
-		goto err_uninit;
-	}
-
-	/* 3. Start conversion */
-	ret = csi_adc_start(&adc);
-	if (ret != CSI_OK) {
-		printf("[FAIL] csi_adc_start failed: %d\n", ret);
-		goto err_uninit;
-	}
-
-	/* 4. Read value */
-	value = csi_adc_read(&adc);
-	if (value < 0) {
-		printf("[FAIL] csi_adc_read failed: %d\n", value);
-		csi_adc_stop(&adc);
-		goto err_uninit;
-	}
-
-	/* 5. Stop */
-	csi_adc_stop(&adc);
-
-	*raw = (uint32_t)value;
-
-	if (mv)
-		*mv = (value * 1500) / 4096;   /* VDD1.8A, 12bit */
-
-	csi_adc_uninit(&adc);
-	return 0;
-
-err_uninit:
-	csi_adc_uninit(&adc);
-	return -1;
 }

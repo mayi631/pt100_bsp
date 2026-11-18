@@ -1,0 +1,36 @@
+From b5572494aff872c8fadbedff766fa207af937e62 Mon Sep 17 00:00:00 2001
+From: "xingfei.liang" <xingfei.liang@sophgo.com>
+Date: Wed, 14 Jan 2026 18:50:06 +0800
+Subject: [PATCH] fix(bmlib): ion should be cachable, otherwise it will be
+ slowly when access ion memory.
+
+Change-Id: I158537ab981a6a555c11ce289fd3d33aecaa1eda
+---
+ bmlib/src/bmlib_memory.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bmlib/src/bmlib_memory.cpp b/bmlib/src/bmlib_memory.cpp
+index 1652ffa..cdfe9cc 100644
+--- a/bmlib/src/bmlib_memory.cpp
++++ b/bmlib/src/bmlib_memory.cpp
+@@ -499,7 +499,7 @@ static int bm_alloc_gmem(bm_handle_t ctx, bm_device_mem_t *pmem, int heap_id_mas
+ 
+   memset(&alloc_data, 0, sizeof(alloc_data));
+   alloc_data.len = pmem->size;
+-  alloc_data.flags = 0;
++  alloc_data.flags = ION_FLAG_CACHED;
+   memcpy(alloc_data.name, BMLIB_ION_MEMORY_NAME, sizeof(BMLIB_ION_MEMORY_NAME));
+   bm_profile_record_mem_begin(ctx);
+   if (ctx->ion_fd) {
+@@ -610,7 +610,7 @@ static int bm_alloc_gmem_u64(bm_handle_t ctx, bm_device_mem_u64_t *pmem, int hea
+ 
+   memset(&alloc_data, 0, sizeof(alloc_data));
+   alloc_data.len = pmem->size;
+-  alloc_data.flags = 0;
++  alloc_data.flags = ION_FLAG_CACHED;
+   memcpy(alloc_data.name, BMLIB_ION_MEMORY_NAME, sizeof(BMLIB_ION_MEMORY_NAME));
+   bm_profile_record_mem_begin(ctx);
+ 
+-- 
+2.25.1
+

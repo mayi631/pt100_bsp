@@ -1,0 +1,33 @@
+From 9f2f9637cf5a697ab41b4619f7ca78c1e34e13c3 Mon Sep 17 00:00:00 2001
+From: "song.yu" <song.yu@sophgo.com>
+Date: Tue, 17 Mar 2026 19:31:19 +0800
+Subject: [PATCH] fix: add missing -p for pack_prog_img
+
+[description ]:NA
+[root   cause]:NA
+[JIRA      ID]:CV184XSDK-1108
+[chip project]:CV184X
+[side effects]:NA
+[Affected *.ko/*.so/*.a] :NA
+
+Change-Id: I2a9c78ecd0057fc5246219982c121c5c1099b877
+---
+ common_functions.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/common_functions.sh b/common_functions.sh
+index c6f0638d..f8eaaa41 100644
+--- a/common_functions.sh
++++ b/common_functions.sh
+@@ -297,7 +297,7 @@ function pack_prog_img
+     ./fip_maker "$page_size" "$nandid" "$OUTPUT_DIR/$fip_file" "$tmp_dir/$fip_file"
+     popd
+ 
+-    python3 $IMGTOOL_PATH/pack_images.py "$CHIP_ARCH_LOWER" "$FLASH_PARTITION_XML" "${OUTPUT_DIR}/rawimages/" "$tmp_dir/" -b "$block_size" 2>&1 | tee "$tmp_dir"/partition_info.txt
++    python3 $IMGTOOL_PATH/pack_images.py "$CHIP_ARCH_LOWER" "$FLASH_PARTITION_XML" "${OUTPUT_DIR}/rawimages/" "$tmp_dir/" -p -b "$block_size" 2>&1 | tee "$tmp_dir"/partition_info.txt
+   else
+     cp "${OUTPUT_DIR}/${fip_file}" "${OUTPUT_DIR}/rawimages/"
+     python3 $IMGTOOL_PATH/pack_images.py "$CHIP_ARCH_LOWER" "$FLASH_PARTITION_XML" "${OUTPUT_DIR}/rawimages/" "$tmp_dir/"
+-- 
+2.25.1
+

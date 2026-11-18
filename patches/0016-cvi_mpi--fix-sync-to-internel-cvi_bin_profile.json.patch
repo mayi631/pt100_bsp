@@ -1,0 +1,247 @@
+From 113f66ba780d43baeb25e68281c331818e9509bf Mon Sep 17 00:00:00 2001
+From: "song.yu" <song.yu@sophgo.com>
+Date: Tue, 14 Apr 2026 15:25:28 +0800
+Subject: [PATCH] fix: sync to internel cvi_bin_profile.json
+
+---
+ include/isp/cvi_comm_isp.h                  | 110 ++++++++++----------
+ include/isp/cvi_comm_isp_module.h           |  28 ++---
+ modules/cvi_bin/python/cvi_bin_profile.json |  30 ++++++
+ 3 files changed, 99 insertions(+), 69 deletions(-)
+
+diff --git a/include/isp/cvi_comm_isp.h b/include/isp/cvi_comm_isp.h
+index 20b0369..2d9447b 100644
+--- a/include/isp/cvi_comm_isp.h
++++ b/include/isp/cvi_comm_isp.h
+@@ -249,54 +249,54 @@ typedef struct _ISP_PUB_ATTR_S {
+ } ISP_PUB_ATTR_S;
+ 
+ typedef struct _ISP_CTRL_PARAM_S {
+-  CVI_U32 u32AEStatIntvl;  /*RW; Range:[0x0, 0xFF]*/
+-  CVI_U32 u32AWBStatIntvl; /*RW; Range:[0x0, 0xFF]*/
+-  CVI_U32 u32AFStatIntvl;  /*RW; Range:[0x0, 0xFF]*/
+-  CVI_U32 u32PwmNumber;    /*RW; Range:[0x0, 0xFF]*/
+-  CVI_U32 u32DebugMode;    /*RW; Range:[0x0, 0xFFFFFFFF]*/
++	CVI_U32 u32AEStatIntvl; /*RW; Range:[0x0, 0xFF]*/
++	CVI_U32 u32AWBStatIntvl; /*RW; Range:[0x0, 0xFF]*/
++	CVI_U32 u32AFStatIntvl; /*RW; Range:[0x0, 0xFF]*/
++	CVI_U32 u32PwmNumber; /*RW; Range:[0x0, 0xFF]*/
++	CVI_U32 u32DebugMode; /*RW; Range:[0x0, 0xFFFFFFFF]*/
+ } ISP_CTRL_PARAM_S;
+ 
+ typedef union _ISP_MODULE_CTRL_U {
+-  CVI_U64 u64Key;
+-  struct {
+-    CVI_U64 bitBypassBlc : 1;       /*RW:[0]*/
+-    CVI_U64 bitBypassRlsc : 1;      /*RW:[1]*/
+-    CVI_U64 bitBypassFpn : 1;       /*RW:[2]*/
+-    CVI_U64 bitBypassDpc : 1;       /*RW:[3]*/
+-    CVI_U64 bitBypassCrosstalk : 1; /*RW:[4]*/
+-    CVI_U64 bitBypassWBGain : 1;    /*RW:[5]*/
+-    CVI_U64 bitBypassDis : 1;       /*RW:[6]*/
+-    CVI_U64 bitBypassBnr : 1;       /*RW:[7]*/
+-    CVI_U64 bitBypassDemosaic : 1;  /*RW:[8]*/
+-    CVI_U64 bitBypassRgbcac : 1;    /*RW:[9]*/
+-    CVI_U64 bitBypassLcac : 1;      /*RW:[10]*/
+-    CVI_U64 bitBypassMlsc : 1;      /*RW:[11]*/
+-    CVI_U64 bitBypassCcm : 1;       /*RW:[12]*/
+-    CVI_U64 bitBypassFusion : 1;    /*RW:[13]*/
+-    CVI_U64 bitBypassDrc : 1;       /*RW:[14]*/
+-    CVI_U64 bitBypassGamma : 1;     /*RW:[15]*/
+-    CVI_U64 bitBypassDehaze : 1;    /*RW:[16]*/
+-    CVI_U64 bitBypassClut : 1;      /*RW:[17]*/
+-    CVI_U64 bitBypassCsc : 1;       /*RW:[18]*/
+-    CVI_U64 bitBypassDci : 1;       /*RW:[19]*/
+-    CVI_U64 bitBypassLdci : 1;      /*RW:[20]*/
+-    CVI_U64 bitBypassCa : 1;        /*RW:[21]*/
+-    CVI_U64 bitBypassPreyee : 1;    /*RW:[22]*/
+-    CVI_U64 bitBypassMotion : 1;    /*RW:[23]*/
+-    CVI_U64 bitBypass3dnr : 1;      /*RW:[24]*/
+-    CVI_U64 bitBypassYnr : 1;       /*RW:[25]*/
+-    CVI_U64 bitBypassCnr : 1;       /*RW:[26]*/
+-    CVI_U64 bitBypassCac : 1;       /*RW:[27]*/
+-    CVI_U64 bitBypassCa2 : 1;       /*RW:[28]*/
+-    CVI_U64 bitBypassYee : 1;       /*RW:[29]*/
+-    CVI_U64 bitBypassYcontrast : 1; /*RW:[30]*/
+-    CVI_U64 bitBypassMono : 1;      /*RW:[31]*/
+-    CVI_U64 bitBypassBnrlite : 1;   /*RW:[32]*/
+-    CVI_U64 bitBypassPfr : 1;       /*RW:[33]*/
+-    CVI_U64 bitBypassLblc : 1;      /*RW:[34]*/
+-    CVI_U64 bitBypassAiBnr : 1;     /*RW:[35]*/
+-    CVI_U64 bitRsv : 28;            /*H; [36:63] */
+-  };
++	CVI_U64 u64Key;
++	struct {
++		CVI_U64 bitBypassBlc : 1;		/*RW:[0]*/
++		CVI_U64 bitBypassRlsc : 1;		/*RW:[1]*/
++		CVI_U64 bitBypassFpn : 1;		/*RW:[2]*/
++		CVI_U64 bitBypassDpc : 1;		/*RW:[3]*/
++		CVI_U64 bitBypassCrosstalk : 1;	/*RW:[4]*/
++		CVI_U64 bitBypassWBGain : 1;	/*RW:[5]*/
++		CVI_U64 bitBypassDis : 1;		/*RW:[6]*/
++		CVI_U64 bitBypassBnr : 1;		/*RW:[7]*/
++		CVI_U64 bitBypassDemosaic : 1;	/*RW:[8]*/
++		CVI_U64 bitBypassRgbcac : 1;	/*RW:[9]*/
++		CVI_U64 bitBypassLcac : 1;		/*RW:[10]*/
++		CVI_U64 bitBypassMlsc : 1;		/*RW:[11]*/
++		CVI_U64 bitBypassCcm : 1;		/*RW:[12]*/
++		CVI_U64 bitBypassFusion : 1;	/*RW:[13]*/
++		CVI_U64 bitBypassDrc : 1;		/*RW:[14]*/
++		CVI_U64 bitBypassGamma : 1;		/*RW:[15]*/
++		CVI_U64 bitBypassDehaze : 1;	/*RW:[16]*/
++		CVI_U64 bitBypassClut : 1;		/*RW:[17]*/
++		CVI_U64 bitBypassCsc : 1;		/*RW:[18]*/
++		CVI_U64 bitBypassDci : 1;		/*RW:[19]*/
++		CVI_U64 bitBypassLdci : 1;		/*RW:[20]*/
++		CVI_U64 bitBypassCa : 1;		/*RW:[21]*/
++		CVI_U64 bitBypassPreyee : 1;	/*RW:[22]*/
++		CVI_U64 bitBypassMotion : 1;	/*RW:[23]*/
++		CVI_U64 bitBypass3dnr : 1;		/*RW:[24]*/
++		CVI_U64 bitBypassYnr : 1;		/*RW:[25]*/
++		CVI_U64 bitBypassCnr : 1;		/*RW:[26]*/
++		CVI_U64 bitBypassCac : 1;		/*RW:[27]*/
++		CVI_U64 bitBypassCa2 : 1;		/*RW:[28]*/
++		CVI_U64 bitBypassYee : 1;		/*RW:[29]*/
++		CVI_U64 bitBypassYcontrast : 1;	/*RW:[30]*/
++		CVI_U64 bitBypassMono : 1;		/*RW:[31]*/
++		CVI_U64 bitBypassBnrlite : 1;	/*RW:[32]*/
++		CVI_U64 bitBypassPfr : 1;		/*RW:[33]*/
++		CVI_U64 bitBypassLblc : 1;		/*RW:[34]*/
++		CVI_U64 bitBypassAiBnr : 1;		/*RW:[35]*/
++		CVI_U64 bitRsv : 28;			/*H; [36:63] */
++	};
+ } ISP_MODULE_CTRL_U;
+ 
+ typedef union _ISP_STATISTICS_CTRL_U {
+@@ -1087,19 +1087,19 @@ typedef enum _AF_STATUS {
+ } AF_STATUS;
+ 
+ typedef enum _AF_MANUAL_TYPE {
+-  OP_TYPE_ZOOM,
+-  OP_TYPE_FOCUS,
+-  OP_TYPE_AUTO_FOCUS,
+-  OP_TYPE_ZOOM_POS,
+-  OP_TYPE_FOCUS_POS,
+-  OP_TYPE_AF_BUTT
++	OP_TYPE_ZOOM,
++	OP_TYPE_FOCUS,
++	OP_TYPE_AUTO_FOCUS,
++	OP_TYPE_ZOOM_POS,
++	OP_TYPE_FOCUS_POS,
++	OP_TYPE_AF_BUTT
+ } AF_MANUAL_TYPE;
+ 
+ typedef struct _ISP_FOCUS_MANUAL_ATTR_S {
+-  AF_MANUAL_TYPE enManualOpType;
+-  AF_DIRECTION enManualDir;
+-  CVI_U16 u16ManualStep; /*RW; Range:[0x0, 0x400]*/
+-  CVI_U16 u16ManualPos;  /*RW; Range:[0x0, 0x8000]*/
++	AF_MANUAL_TYPE enManualOpType;
++	AF_DIRECTION enManualDir;
++	CVI_U16 u16ManualStep; /*RW; Range:[0x0, 0x400]*/
++	CVI_U16 u16ManualPos; /*RW; Range:[0x0, 0x8000]*/
+ } ISP_FOCUS_MANUAL_ATTR_S;
+ 
+ typedef struct _ISP_FOCUS_ATTR_S {
+diff --git a/include/isp/cvi_comm_isp_module.h b/include/isp/cvi_comm_isp_module.h
+index e2bc0eb..a140dda 100644
+--- a/include/isp/cvi_comm_isp_module.h
++++ b/include/isp/cvi_comm_isp_module.h
+@@ -10,32 +10,32 @@
+ #define CVI_ISP_LSC_GRID_POINTS (1369)
+ 
+ typedef enum _MESH_MODE {
+-  MESH_CHROMA_MODE,
+-  MESH_CHROMA_LUMA_MODE,
++	MESH_CHROMA_MODE,
++	MESH_CHROMA_LUMA_MODE,
+ } MESH_MODE;
+ 
+ typedef struct _ISP_MESH_SHADING_MANUAL_ATTR_S {
+-  CVI_U16 LumaStrength; /*RW; Range: [0x0, 0xfff]*/
++	CVI_U16 LumaStrength; /*RW; Range: [0x0, 0xfff]*/
+ } ISP_MESH_SHADING_MANUAL_ATTR_S;
+ 
+ typedef struct _ISP_MESH_SHADING_AUTO_ATTR_S {
+-  CVI_U16 LumaStrength[ISP_AUTO_ISO_STRENGTH_NUM]; /*RW; Range: [0x0, 0xfff]*/
++	CVI_U16 LumaStrength[ISP_AUTO_ISO_STRENGTH_NUM]; /*RW; Range: [0x0, 0xfff]*/
+ } ISP_MESH_SHADING_AUTO_ATTR_S;
+ 
+ typedef struct _ISP_MESH_SHADING_ATTR_S {
+-  CVI_BOOL Enable;           /*RW; Range: [0x0, 0x1]*/
+-  ISP_OP_TYPE_E enOpType;    /*RW; Range: [0x0, 0x1]*/
+-  MESH_MODE MeshCorrectMode; /*RW; Range: [0x0, 0x1]*/
+-  CVI_U8 UpdateInterval;     /*RW; Range: [0x0, 0xff]*/
+-  ISP_MESH_SHADING_MANUAL_ATTR_S stManual;
+-  ISP_MESH_SHADING_AUTO_ATTR_S stAuto;
++	CVI_BOOL Enable; /*RW; Range: [0x0, 0x1]*/
++	ISP_OP_TYPE_E enOpType; /*RW; Range: [0x0, 0x1]*/
++	MESH_MODE MeshCorrectMode; /*RW; Range: [0x0, 0x1]*/
++	CVI_U8 UpdateInterval; /*RW; Range: [0x0, 0xff]*/
++	ISP_MESH_SHADING_MANUAL_ATTR_S stManual;
++	ISP_MESH_SHADING_AUTO_ATTR_S stAuto;
+ } ISP_MESH_SHADING_ATTR_S;
+ 
+ typedef struct _ISP_MESH_SHADING_GAIN_LUT_S {
+-  CVI_U16 ColorTemperature;               /*RW; Range: [0x0, 0x7530]*/
+-  CVI_U16 RGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
+-  CVI_U16 GGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
+-  CVI_U16 BGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
++	CVI_U16 ColorTemperature; /*RW; Range: [0x0, 0x7530]*/
++	CVI_U16 RGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
++	CVI_U16 GGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
++	CVI_U16 BGain[CVI_ISP_LSC_GRID_POINTS]; /*RW; Range: [0x0, 0xfff]*/
+ } ISP_MESH_SHADING_GAIN_LUT_S;
+ 
+ typedef struct _ISP_MESH_SHADING_GAIN_LUT_ATTR_S {
+diff --git a/modules/cvi_bin/python/cvi_bin_profile.json b/modules/cvi_bin/python/cvi_bin_profile.json
+index 4693f67..cf2e241 100644
+--- a/modules/cvi_bin/python/cvi_bin_profile.json
++++ b/modules/cvi_bin/python/cvi_bin_profile.json
+@@ -975,6 +975,32 @@
+             {
+                 "ID": 2,
+                 "type":["unsigned", "char"], "name":"UpdateInterval", "dims":[], "children": []
++            },
++            {
++                "ID": 3,
++                "type":["MESH_MODE"], "name":"MeshCorrectMode", "dims":[], "children": []
++            },
++            {
++                "ID": 4,
++                "type":["unsigned", "short"], "name":"LumaStrength", "dims":[], "children": []
++            },
++            {
++                "ID": 5,
++                "type":["ISP_MESH_SHADING_MANUAL_ATTR_S"], "name":"stManual", "dims":[], "children": [
++                    {
++                        "ID": 0,
++                        "type":["unsigned", "short"], "name":"LumaStrength", "dims":[], "children": []
++                    }
++                ]
++            },
++            {
++                "ID": 6,
++                "type":["ISP_MESH_SHADING_AUTO_ATTR_S"], "name":"stAuto", "dims":[], "children": [
++                    {
++                        "ID": 0,
++                        "type":["unsigned", "short"], "name":"LumaStrength", "dims":["16"], "children": []
++                    }
++                ]
+             }
+         ]
+     },
+@@ -5931,6 +5957,10 @@
+                     {
+                         "ID": 7,
+                         "type":["unsigned", "short"], "name":"u16ManualPos", "dims":[], "children": []
++                    },
++                    {
++                        "ID": 8,
++                        "type":["AF_MANUAL_TYPE"], "name":"enManualOpType", "dims":[], "children": []
+                     }
+                 ]
+             }
+-- 
+2.25.1
+

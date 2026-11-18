@@ -1,0 +1,142 @@
+From 6bd311bd274fb5173eb8c045500e371b1b0aacee Mon Sep 17 00:00:00 2001
+From: "yicong.wu" <yicong.wu@sophgo.com>
+Date: Tue, 23 Jun 2026 17:15:34 +0800
+Subject: [PATCH] fix: delete param bin on factory reset to re-detect sensor
+ i2c addr
+
+Change-Id: I02f45746e02a8568212123cb8b651ee7440c53f2
+---
+ applications/dashcam/mode/src/bootmode.c      |  4 ++
+ applications/dashcam/mode/src/moviemode.c     |  6 ++-
+ .../dashcam/param/core/include/param.h        |  5 +-
+ applications/dashcam/param/core/src/param.c   | 47 ++++++++++++-------
+ 4 files changed, 43 insertions(+), 19 deletions(-)
+
+diff --git a/applications/dashcam/mode/src/bootmode.c b/applications/dashcam/mode/src/bootmode.c
+index 00df422..97ce6fc 100644
+--- a/applications/dashcam/mode/src/bootmode.c
++++ b/applications/dashcam/mode/src/bootmode.c
+@@ -67,6 +67,10 @@ static int32_t MODEMNG_SetDefaultParamFromBin(void)
+     PARAM_GetVcapParam(0, &vcap_attr);
+     MEDIA_SensorSwitchInit(&sns_attr, &vcap_attr);
+ 
++    /* Delete param bin so next boot re-runs ini2bin_board and re-detects the
++       sensor I2C address. User reboots manually after factory reset. */
++    PARAM_DeleteParamBin();
++
+     CVI_LOGI("reset param finish, will use front sensor");
+ 
+     return 0;
+diff --git a/applications/dashcam/mode/src/moviemode.c b/applications/dashcam/mode/src/moviemode.c
+index f7f958d..e25efb8 100644
+--- a/applications/dashcam/mode/src/moviemode.c
++++ b/applications/dashcam/mode/src/moviemode.c
+@@ -1186,7 +1186,11 @@ int32_t MODEMNG_SetDefaultParam(void)
+     MODEMNG_CHECK_RET(ret,MODE_EINVAL,"set ui language");
+ 
+     ret = MODEMNG_ResetMovieMode(&param);
+-    MODEMNG_CHECK_RET(ret,MODE_EINVAL,"reset movie mode");
++    MODEMNG_CHECK_RET(ret, MODE_EINVAL, "reset movie mode");
++
++    /* Delete param bin so next boot re-runs ini2bin_board and re-detects the
++       sensor I2C address. User reboots manually after factory reset. */
++    PARAM_DeleteParamBin();
+ 
+     CVI_LOGI("reset param finish\n");
+ #endif
+diff --git a/applications/dashcam/param/core/include/param.h b/applications/dashcam/param/core/include/param.h
+index 77a2b92..5b85501 100644
+--- a/applications/dashcam/param/core/include/param.h
++++ b/applications/dashcam/param/core/include/param.h
+@@ -790,9 +790,10 @@ int32_t PARAM_Ini2bin(void);
+ PARAM_CONTEXT_S *PARAM_GetCtx(void);
+ int32_t PARAM_GetParam(PARAM_CFG_S *param);
+ int32_t PARAM_Save2Bin(void);
+-int32_t PARAM_LoadFromBin(const char *path);
++int32_t PARAM_LoadFromBin(const char* path);
+ int32_t PARAM_LoadFromDefBin(PARAM_CFG_S* param);
+-int32_t PARAM_LoadFromFlash(hal_flash *flash, char *partition, uint64_t addr, uint64_t len);
++int32_t PARAM_DeleteParamBin(void);
++int32_t PARAM_LoadFromFlash(hal_flash* flash, char* partition, uint64_t addr, uint64_t len);
+ int32_t PARAM_SaveParam(void);
+ void PARAM_SetSaveFlg(void);
+ int32_t PARAM_GetCamStatus(uint32_t CamId, bool *Param);
+diff --git a/applications/dashcam/param/core/src/param.c b/applications/dashcam/param/core/src/param.c
+index 4f7268e..8e61d13 100644
+--- a/applications/dashcam/param/core/src/param.c
++++ b/applications/dashcam/param/core/src/param.c
+@@ -1,19 +1,16 @@
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <unistd.h>
+-#include <signal.h>
+-#include <sys/types.h>
+-#include <sys/stat.h>
++#include <errno.h>
+ #include <fcntl.h>
++#include <inttypes.h>
+ #include <pthread.h>
+-#include <string.h>
++#include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+-#include <unistd.h>
+-#include <pthread.h>
+-#include <sys/prctl.h>
+-#include <inttypes.h>
++#include <string.h>
+ #include <sys/mman.h>
++#include <sys/prctl.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <unistd.h>
+ 
+ #include "mapi.h"
+ #include "param.h"
+@@ -267,12 +264,11 @@ int32_t  PARAM_Deinit(void)
+ int32_t PARAM_Ini2bin(void)
+ {
+     const char* def_bin_path = "/mnt/data/bin/param/app_cfg_def.bin";
+-    const char* bin_path = "/mnt/data/bin/param/app_cfg_def.bin";
+-    if (access(bin_path, F_OK) == 0 &&
+-        access(def_bin_path, F_OK) == 0) {
++    const char* bin_path = "/mnt/data/bin/param/app_cfg.bin";
++    if (access(bin_path, F_OK) == 0 && access(def_bin_path, F_OK) == 0) {
+         CVI_LOGI("bin is exist");
+         return 0;
+-    }else{
++    } else {
+         system("chmod +x /mnt/data/bin/param/ini2bin_board");
+         system("cd /mnt/data/bin/param && ./ini2bin_board");
+     }
+@@ -293,7 +289,26 @@ PARAM_CONTEXT_S *PARAM_GetCtx(void)
+     return &g_stParamCtx;
+ }
+ 
+-int32_t  PARAM_GetParam(PARAM_CFG_S *param)
++/* Delete generated param bin files so that next boot re-runs ini2bin_board,
++   which re-detects the sensor I2C address. Used by factory reset to make the
++   device behave like a fresh firmware burn after a manual reboot. */
++int32_t PARAM_DeleteParamBin(void)
++{
++    const char* bins[] = { PARAM_CUR_BIN_PATH, PARAM_DEF_BIN_PATH };
++    uint32_t i;
++
++    for (i = 0; i < sizeof(bins) / sizeof(bins[0]); i++) {
++        if (remove(bins[i]) == 0) {
++            CVI_LOGI("removed param bin: %s\n", bins[i]);
++        } else {
++            CVI_LOGW("remove param bin %s failed: %s\n", bins[i], strerror(errno));
++        }
++    }
++
++    return 0;
++}
++
++int32_t PARAM_GetParam(PARAM_CFG_S* param)
+ {
+     if (!g_stParamCtx.bInit) {
+         CVI_LOGE(" Param not init\n");
+-- 
+2.25.1
+

@@ -1,0 +1,115 @@
+From 0c9b940f711c35ae659442f744688d94a196de1f Mon Sep 17 00:00:00 2001
+From: "yicong.wu" <yicong.wu@sophgo.com>
+Date: Tue, 23 Jun 2026 11:44:40 +0800
+Subject: [PATCH] fix: isolate other sensor during i2c address probe in ini2bin
+
+Change-Id: Idd5239996edb646dcdc6af4938e3b2771db855a1
+---
+ .../param/ini2bin/src/param_ini_media.c       | 56 +++++++++++++++++++
+ 1 file changed, 56 insertions(+)
+
+diff --git a/applications/dashcam/param/ini2bin/src/param_ini_media.c b/applications/dashcam/param/ini2bin/src/param_ini_media.c
+index 8d589ab..97e9eb6 100644
+--- a/applications/dashcam/param/ini2bin/src/param_ini_media.c
++++ b/applications/dashcam/param/ini2bin/src/param_ini_media.c
+@@ -101,6 +101,53 @@ static int32_t gpio_unexport(uint32_t gpio)
+     }
+ }
+ 
++static int32_t gpio_set_low(uint32_t gpio)
++{
++    char gpio_path[64] = { 0 };
++    char value[8] = { 0 };
++    int32_t fd = -1;
++
++    /* Export GPIO */
++    snprintf(gpio_path, sizeof(gpio_path), "/sys/class/gpio/export");
++    fd = open(gpio_path, O_WRONLY);
++    if (fd >= 0) {
++        snprintf(value, sizeof(value), "%u", gpio);
++        write(fd, value, strlen(value));
++        close(fd);
++        printf("[Info] Exported GPIO %u\n", gpio);
++    } else {
++        printf("[Warn] Failed to export GPIO %u: %s\n", gpio, strerror(errno));
++        return -1;
++    }
++
++    /* Set direction to out */
++    snprintf(gpio_path, sizeof(gpio_path), "/sys/class/gpio/gpio%d/direction", gpio);
++    fd = open(gpio_path, O_WRONLY);
++    if (fd >= 0) {
++        write(fd, "out", 3);
++        close(fd);
++        printf("[Info] Set GPIO %u direction to out\n", gpio);
++    } else {
++        printf("[Warn] Failed to set GPIO %u direction: %s\n", gpio, strerror(errno));
++        return -1;
++    }
++
++    /* Set value to low */
++    snprintf(gpio_path, sizeof(gpio_path), "/sys/class/gpio/gpio%d/value", gpio);
++    fd = open(gpio_path, O_WRONLY);
++    if (fd >= 0) {
++        write(fd, "0", 1);
++        close(fd);
++        printf("[Info] Set GPIO %u value to low\n", gpio);
++    } else {
++        printf("[Warn] Failed to set GPIO %u value: %s\n", gpio, strerror(errno));
++        return -1;
++    }
++
++    usleep(20000); // delay to allow other sensor to settle in reset
++    return 0;
++}
++
+ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr, bool switch_config)
+ {
+ #define I2C_DETECT_RETRIES 3
+@@ -112,6 +159,7 @@ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr
+     uint8_t addr_count = sizeof(test_addrs) / sizeof(test_addrs[0]);
+     uint8_t i;
+     int reset_gpio = switch_config ? reset_gpios[1] : reset_gpios[0];
++    int other_gpio = switch_config ? reset_gpios[0] : reset_gpios[1];
+     static uint8_t last_detected_addr[2] = { 0, 0 };
+     uint8_t* plast = switch_config ? &last_detected_addr[1] : &last_detected_addr[0];
+     if (*plast != 0) {
+@@ -124,6 +172,11 @@ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr
+     printf("I2C Bus: %d\n", i2c_bus_id);
+     printf("Test addresses: 0x%02x, 0x%02x\n", 0x10, 0x1a);
+ 
++    /* Isolate the other sensor: hold its reset GPIO low so only the target
++       sensor is alive on the shared I2C bus during probing. */
++    printf("[Info] Setting other sensor reset GPIO %d to low for isolation\n", other_gpio);
++    gpio_set_low(other_gpio);
++
+     /* Export and set GPIO high before detection */
+     printf("\n--- GPIO Setup ---\n");
+     printf("[Info] Setting sensor reset GPIO %d to high\n", reset_gpio);
+@@ -139,6 +192,7 @@ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr
+     if (fd < 0) {
+         printf("[Error] Cannot open %s: %s\n", i2c_dev_path, strerror(errno));
+         gpio_unexport(reset_gpio);
++        gpio_unexport(other_gpio);
+         return -1;
+     }
+ 
+@@ -172,6 +226,7 @@ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr
+             printf("\n[Success] Sensor detected at I2C address 0x%02x on bus %d\n", addr, i2c_bus_id);
+             close(fd);
+             gpio_unexport(reset_gpio);
++            gpio_unexport(other_gpio);
+             return 0;
+         } else {
+             printf("No response from address 0x%02x\n", addr);
+@@ -181,6 +236,7 @@ static int32_t detect_sensor_i2c_addr(uint8_t i2c_bus_id, uint8_t* detected_addr
+     printf("\n[Result] No sensor detected at expected addresses\n");
+     close(fd);
+     gpio_unexport(reset_gpio);
++    gpio_unexport(other_gpio);
+     return -1;
+ }
+ 
+-- 
+2.25.1
+

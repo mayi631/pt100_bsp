@@ -30,8 +30,8 @@ fi
 insmod /system/ko/aic8800_fdrv.ko aicwf_dbg_level=3
 insmod /system/ko/3rd/8189fs.ko
 
-# 640*480*4/1024=1200, double buffer 2400 KB.
-insmod /system/ko/cv184x_gfbg.ko video="gfbg:vram0_size:2400" tde_rot=0
+# 640*480*4/1024=1200, double buffer 2400 KB. 270 degree rotation
+insmod /system/ko/cv184x_gfbg.ko video="gfbg:vram0_size:2400" tde_rot=2
 
 echo 3 > /proc/sys/vm/drop_caches
 dmesg -n 4

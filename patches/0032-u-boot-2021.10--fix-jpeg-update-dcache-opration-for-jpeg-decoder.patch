@@ -1,0 +1,42 @@
+From baa9d635403c00157e553bd19c3663daca5d8fee Mon Sep 17 00:00:00 2001
+From: "cheng.tan" <cheng.tan@sophgo.com>
+Date: Mon, 9 Mar 2026 14:36:35 +0800
+Subject: [PATCH] [fix](jpeg) update dcache opration for jpeg decoder
+
+[description ]:update dcache opration for jpeg decoder
+[root   cause]:NA
+[JIRA      ID]:CV184XSDK-1073
+[chip project]:CV184X
+[side effects]:NA
+[Affected *.ko/*.so/*.a] :NA
+
+Change-Id: Ie245be8209ca6129670f6f5e6f7ad27058162b44
+---
+ drivers/jpeg/jpurun.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/jpeg/jpurun.c b/drivers/jpeg/jpurun.c
+index 91f401ad46..ebcac55c24 100644
+--- a/drivers/jpeg/jpurun.c
++++ b/drivers/jpeg/jpurun.c
+@@ -454,7 +454,7 @@ int jpeg_decode_helper(DecConfigParam *param)
+ 			outputInfo.decodingSuccess = 0;
+ 			JPU_SWReset();
+ 		}
+-
++		flush_dcache_all();
+ 		// Start decoding a frame.
+ 		ret = JPU_DecStartOneFrame(handle, &decParam);
+ 
+@@ -653,7 +653,7 @@ JPU_END_OF_STREAM:
+ 
+ 			ppIdx = (ppIdx - regFrameBufCount + 1) % MAX_ROT_BUF_NUM;
+ 		}
+-
++			invalidate_dcache_all();
+ 		copy_to_dest_addr((Uint8 *)frameBuf[saveIdx].bufY, pRefYuvBuf,
+ 				  dispWidth, dispHeight, framebufStrideY, framebufStrideC,
+ 				  (int)decOP.chroma_interleave, framebufFormat, 0, decOP.packedFormat);
+-- 
+2.25.1
+
