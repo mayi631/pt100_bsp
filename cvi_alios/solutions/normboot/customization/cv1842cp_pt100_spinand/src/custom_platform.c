@@ -3,8 +3,93 @@
 #include <pinctrl-mars.h>
 #include "cvi_type.h"
 #include "iic_recovery.h"
+#include <drv/iic.h>
 
 #define GPIO_PIN_MASK(_gpio_num) (1 << _gpio_num)
+
+/*
+ * 屏幕的复位与背光由外置 MCU(CIU32F003) 控制，小核通过 IIC0 写其寄存器。
+ * 7 位从机地址 0x30，总线写地址字节 0x60。
+ * 参考 adoc/panel/扩展控制氛围灯加密操作说明.c 的 IO 扩展寄存器定义。
+ */
+#define MCU_IIC_IDX             0
+#define MCU_IIC_ADDR            0x1c
+#define MCU_IIC_TIMEOUT_MS      1000
+
+#define MCU_IO_REG_TP_RST       0x06
+#define MCU_IO_REG_LCD_RST      0x07
+#define MCU_IO_REG_LCD_BL_PWM   0x08
+
+/* 启动时默认背光亮度，MCU 按 0~100 百分比处理 */
+#define PANEL_BACKLIGHT_DEFAULT 80
+
+static csi_iic_t g_mcu_iic;
+static int g_mcu_iic_ready;
+
+static void _McuIicPinmux(void)
+{
+	PINMUX_CONFIG(IIC0_SCL, CV_SCL0__CR_4WTDI);
+	PINMUX_CONFIG(IIC0_SDA, CV_SDA0__CR_4WTDO);
+}
+
+static int _McuIicInit(void)
+{
+	if (g_mcu_iic_ready) {
+		return 0;
+	}
+
+	_McuIicPinmux();
+
+	if (csi_iic_init(&g_mcu_iic, MCU_IIC_IDX) != CSI_OK) {
+		printf("mcu iic init failed\r\n");
+		return -1;
+	}
+	if (csi_iic_mode(&g_mcu_iic, IIC_MODE_MASTER) != CSI_OK) {
+		printf("mcu iic mode failed\r\n");
+		goto fail;
+	}
+	if (csi_iic_addr_mode(&g_mcu_iic, IIC_ADDRESS_7BIT) != CSI_OK) {
+		printf("mcu iic addr mode failed\r\n");
+		goto fail;
+	}
+	if (csi_iic_speed(&g_mcu_iic, IIC_BUS_SPEED_FAST) != CSI_OK) {
+		printf("mcu iic speed failed\r\n");
+		goto fail;
+	}
+
+	g_mcu_iic_ready = 1;
+	return 0;
+
+fail:
+	csi_iic_uninit(&g_mcu_iic);
+	return -1;
+}
+
+static int _McuWriteReg(u8 reg, u8 value)
+{
+	u8 buf[2];
+	int32_t ret;
+
+	if (_McuIicInit() != 0) {
+		return -1;
+	}
+
+	buf[0] = reg;
+	buf[1] = value;
+	ret = csi_iic_master_send(&g_mcu_iic, MCU_IIC_ADDR, buf, sizeof(buf), MCU_IIC_TIMEOUT_MS);
+	if (ret != (int32_t)sizeof(buf)) {
+		printf("mcu write reg 0x%02x failed, ret=%d\r\n", reg, (int)ret);
+		return -1;
+	}
+
+	return 0;
+}
+
+/* 数字输出寄存器：0x00 输出低电平，非 0x00 输出高电平 */
+static int _McuSetIo(u8 reg, u8 level)
+{
+	return _McuWriteReg(reg, level ? 1 : 0);
+}
 
 void _GPIOSetValue(u8 gpio_grp, u8 gpio_num, u8 level)
 {
@@ -244,10 +329,15 @@ void PLATFORM_PowerOff(void)
 
 void _PanelPinmux(void)
 {
+#if CONFIG_PANEL_BJX2416F0
+	// 复位与背光由 MCU 控制，IIC0 引脚在 _McuIicInit 里配置
+#else
 	// LCD_RESET SPK-EN
 	PINMUX_CONFIG(JTAG_CPU_TCK, PWM_6); // LCD_BL
+#endif
 }
 
+#ifdef POWER_KEY_CHECK
 // 检测是否是看门狗或reboot触发的开机
 static bool _IsRebootOrWatchdogWakeup(void)
 {
@@ -279,13 +369,16 @@ static void PowerKeyCheck(void)
 		}
 	}
 }
+#endif
 
 int PLATFORM_PanelInit(void)
 {
 	// 看门狗或reboot触发的开机，不检测按键，直接继续启动
+#ifdef POWER_KEY_CHECK
 	if (!_IsRebootOrWatchdogWakeup()) {
 		PowerKeyCheck();
 	}
+#endif
 	_PanelPinmux();
 #if (!defined(CONFIG_SUPPORT_VO) || (CONFIG_SUPPORT_VO))
 #if CONFIG_PANEL_HX8394
@@ -320,6 +413,16 @@ int PLATFORM_PanelInit(void)
 	udelay(20 * 1000);
 	_GPIOSetValue(rst_port, rst_pin, 1);
 	udelay(20 * 1000);
+#elif CONFIG_PANEL_BJX2416F0
+	// LCD_RST(PA0) 由 MCU 的 0x07 寄存器控制
+	_McuSetIo(MCU_IO_REG_LCD_RST, 1);
+	udelay(20 * 1000);
+	_McuSetIo(MCU_IO_REG_LCD_RST, 0);
+	udelay(20 * 1000);
+	_McuSetIo(MCU_IO_REG_LCD_RST, 1);
+	udelay(20 * 1000);
+	// 启动时把背光设为默认亮度
+	PLATFORM_PanelBacklightCtl(PANEL_BACKLIGHT_DEFAULT);
 #elif CONFIG_PANEL_BJX2836F0
 	u8 rst_port = 0, rst_pin = 15;
 	_GPIOSetValue(rst_port, rst_pin, 1);
@@ -336,7 +439,17 @@ int PLATFORM_PanelInit(void)
 
 void PLATFORM_PanelBacklightCtl(int level)
 {
-
+#if CONFIG_PANEL_BJX2416F0
+	// LCD_BL_PWM(PA7)：0~100，超过 100 由 MCU 按 100 处理
+	if (level < 0) {
+		level = 0;
+	} else if (level > 100) {
+		level = 100;
+	}
+	_McuWriteReg(MCU_IO_REG_LCD_BL_PWM, (u8)level);
+#else
+	(void)level;
+#endif
 }
 
 int PLATFORM_IrCutCtl(int duty)

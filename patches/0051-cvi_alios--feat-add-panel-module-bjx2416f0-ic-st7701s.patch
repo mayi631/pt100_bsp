@@ -1,0 +1,181 @@
+From ebbe5248e711635affb509f53e79b2759e335e78 Mon Sep 17 00:00:00 2001
+From: "xiu.yang" <xiu.yang@sophgo.com>
+Date: Wed, 25 Nov 2026 09:54:38 +0800
+Subject: [PATCH] feat: add panel module bjx2416f0, ic:st7701s
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+2.4 inch 480x640 MIPI DSI panel, driver IC ST7701S, 1 data lane.
+Init sequence from adoc/panel/2.4高清代码.txt; porch timings follow the
+same-vendor BJX2836F0 module.
+
+- components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h: dev_cfg, hs_timing and
+  init commands
+- dsi_panels.h: register panel_desc under CONFIG_PANEL_BJX2416F0
+- board_config.h: PANEL_WIDTH/HEIGHT 480x640 for CONFIG_PANEL_BJX2416F0
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Change-Id: I27b84d2d5d82a35675a333acb6352141c97815ee
+---
+ boards/cv184x_evb/include/board_config.h      |   3 +
+ .../cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h     | 112 ++++++++++++++++++
+ components/cvi_mmf_sdk/cvi_panel/dsi_panels.h |   9 ++
+ 3 files changed, 124 insertions(+)
+ create mode 100644 components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
+
+diff --git a/boards/cv184x_evb/include/board_config.h b/boards/cv184x_evb/include/board_config.h
+index d50c8003..11aa1ebb 100644
+--- a/boards/cv184x_evb/include/board_config.h
++++ b/boards/cv184x_evb/include/board_config.h
+@@ -38,6 +38,9 @@ extern "C" {
+ #elif CONFIG_PANEL_OTA7290B
+ #define PANEL_WIDTH 440
+ #define PANEL_HEIGHT 1920
++#elif CONFIG_PANEL_BJX2416F0
++#define PANEL_WIDTH 480
++#define PANEL_HEIGHT 640
+ #else
+ #define PANEL_WIDTH 720
+ #define PANEL_HEIGHT 1280
+diff --git a/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h b/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
+new file mode 100644
+index 00000000..31df8a98
+--- /dev/null
++++ b/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
+@@ -0,0 +1,112 @@
++#ifndef _MIPI_TX_PARAM_BJX2416F0_H_
++#define _MIPI_TX_PARAM_BJX2416F0_H_
++
++#include <cvi_comm_mipi_tx.h>
++
++/*
++ * BJX2416F0: 2.4 inch TFT, 480x640, driver IC ST7701S, 1 data lane + 1 clock lane.
++ * Init sequence comes from adoc/panel/2.4高清代码.txt.
++ * The spec sheet gives no porch timings, so the values below follow the
++ * BJX2836F0 module from the same vendor with the same 480x640 resolution.
++ * Re-check HSA/HBP/HFP/VSA/VBP/VFP against the panel vendor if the picture
++ * is shifted or unstable.
++ */
++#define BJX2416F0_VACT	640
++#define BJX2416F0_VSA	8
++#define BJX2416F0_VBP	20
++#define BJX2416F0_VFP	20
++
++#define BJX2416F0_HACT	480
++#define BJX2416F0_HSA	10
++#define BJX2416F0_HBP	80
++#define BJX2416F0_HFP	80
++
++#define BJX2416F0_PIXEL_CLK(x) ((x##_VACT + x##_VSA + x##_VBP + x##_VFP) \
++	* (x##_HACT + x##_HSA + x##_HBP + x##_HFP) * 60 / 1000)
++
++struct combo_dev_cfg_s dev_cfg_bjx2416f0 = {
++	.devno = 0,
++	.lane_id = {MIPI_TX_LANE_CLK, MIPI_TX_LANE_0, -1, -1, -1},
++	.lane_pn_swap = {false, false, false, false, false},
++	.output_mode = OUTPUT_MODE_DSI_VIDEO,
++	.video_mode = BURST_MODE,
++	.output_format = OUT_FORMAT_RGB_24_BIT,
++	.sync_info = {
++		.vid_hsa_pixels = BJX2416F0_HSA,
++		.vid_hbp_pixels = BJX2416F0_HBP,
++		.vid_hfp_pixels = BJX2416F0_HFP,
++		.vid_hline_pixels = BJX2416F0_HACT,
++		.vid_vsa_lines = BJX2416F0_VSA,
++		.vid_vbp_lines = BJX2416F0_VBP,
++		.vid_vfp_lines = BJX2416F0_VFP,
++		.vid_active_lines = BJX2416F0_VACT,
++		.vid_vsa_pos_polarity = true,
++		.vid_hsa_pos_polarity = false,
++	},
++	.pixel_clk = BJX2416F0_PIXEL_CLK(BJX2416F0),
++};
++
++struct hs_settle_s hs_timing_cfg_bjx2416f0 = { .prepare = 6, .zero = 32, .trail = 1 };
++
++struct dsc_instr dsi_init_cmds_bjx2416f0[] = {
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x13 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xEF, 0x08 } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x10 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC0, 0x4F, 0x00 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC1, 0x10, 0x0C } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC2, 0x01, 0x14 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xCC, 0x10 } },
++	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
++		0xB0, 0x00, 0x0B, 0x13, 0x0D, 0x10, 0x07, 0x02, 0x08, 0x07, 0x1F,
++		0x04, 0x11, 0x0F, 0x28, 0x2F, 0x1F } },
++	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
++		0xB1, 0x00, 0x0C, 0x13, 0x0C, 0x10, 0x05, 0x02, 0x08, 0x08, 0x1E,
++		0x05, 0x13, 0x11, 0x27, 0x30, 0x1F } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x11 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB0, 0x4D } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB1, 0x55 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB2, 0x87 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB3, 0x80 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB5, 0x45 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB7, 0x85 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xB8, 0x20 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xC0, 0x09 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xC1, 0x78 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xC2, 0x78 } },
++	{.delay = 100, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xD0, 0x88 } },
++	{.delay = 0, .data_type = 0x29, .size = 4, .data = (CVI_U8[]){ 0xE0, 0x00, 0x00, 0x02 } },
++	{.delay = 0, .data_type = 0x29, .size = 12, .data = (CVI_U8[]){
++		0xE1, 0x04, 0xB0, 0x06, 0xB0, 0x05, 0xB0, 0x07, 0xB0, 0x00, 0x44, 0x44 } },
++	{.delay = 0, .data_type = 0x29, .size = 13, .data = (CVI_U8[]){
++		0xE2, 0x20, 0x20, 0x44, 0x44, 0x96, 0xA0, 0x00, 0x00, 0x96, 0xA0, 0x00, 0x00 } },
++	{.delay = 0, .data_type = 0x29, .size = 5, .data = (CVI_U8[]){ 0xE3, 0x00, 0x00, 0x22, 0x22 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE4, 0x44, 0x44 } },
++	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
++		0xE5, 0x0C, 0x90, 0xB0, 0xA0, 0x0E, 0x92, 0xB0, 0xA0,
++		0x08, 0x8C, 0xB0, 0xA0, 0x0A, 0x8E, 0xB0, 0xA0 } },
++	{.delay = 0, .data_type = 0x29, .size = 5, .data = (CVI_U8[]){ 0xE6, 0x00, 0x00, 0x22, 0x22 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE7, 0x44, 0x44 } },
++	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
++		0xE8, 0x0D, 0x91, 0xB0, 0xA0, 0x0F, 0x93, 0xB0, 0xA0,
++		0x09, 0x8D, 0xB0, 0xA0, 0x0B, 0x8F, 0xB0, 0xA0 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE9, 0x36, 0x00 } },
++	{.delay = 0, .data_type = 0x29, .size = 8, .data = (CVI_U8[]){ 0xEB, 0x00, 0x00, 0xE4, 0xE4, 0x44, 0x88, 0x40 } },
++	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
++		0xED, 0xF1, 0xB2, 0xAC, 0x0F, 0x67, 0x45, 0xFF, 0xFF,
++		0xFF, 0xFF, 0x54, 0x76, 0xF0, 0xCA, 0x2B, 0x1F } },
++	{.delay = 0, .data_type = 0x29, .size = 7, .data = (CVI_U8[]){ 0xEF, 0x10, 0x0D, 0x04, 0x08, 0x3F, 0x1F } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x13 } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE8, 0x00, 0x0E } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x00 } },
++	{.delay = 120, .data_type = 0x05, .size = 1, .data = (CVI_U8[]){ 0x11 } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x13 } },
++	{.delay = 10, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE8, 0x00, 0x0C } },
++	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xE8, 0x00, 0x00 } },
++	{.delay = 0, .data_type = 0x29, .size = 6, .data = (CVI_U8[]){ 0xFF, 0x77, 0x01, 0x00, 0x00, 0x00 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0x36, 0x10 } },
++	{.delay = 20, .data_type = 0x05, .size = 1, .data = (CVI_U8[]){ 0x29 } }
++};
++
++#else
++#error "MIPI_TX_PARAM multi-delcaration!!"
++#endif // _MIPI_TX_PARAM_BJX2416F0_H_
+diff --git a/components/cvi_mmf_sdk/cvi_panel/dsi_panels.h b/components/cvi_mmf_sdk/cvi_panel/dsi_panels.h
+index 2683ff7d..b391790a 100644
+--- a/components/cvi_mmf_sdk/cvi_panel/dsi_panels.h
++++ b/components/cvi_mmf_sdk/cvi_panel/dsi_panels.h
+@@ -64,6 +64,15 @@ static struct panel_desc_s panel_desc = {
+ 	.dsi_init_cmds      = dsi_init_cmds_bjx2836f0,
+ 	.dsi_init_cmds_size = ARRAY_SIZE(dsi_init_cmds_bjx2836f0)
+ };
++#elif CONFIG_PANEL_BJX2416F0
++#include "dsi_bjx2416f0.h"
++static struct panel_desc_s panel_desc = {
++	.panel_name         = "BJX2416F0-480x640",
++	.dev_cfg            = &dev_cfg_bjx2416f0,
++	.hs_timing_cfg      = &hs_timing_cfg_bjx2416f0,
++	.dsi_init_cmds      = dsi_init_cmds_bjx2416f0,
++	.dsi_init_cmds_size = ARRAY_SIZE(dsi_init_cmds_bjx2416f0)
++};
+ #elif CONFIG_PANEL_HX8394
+ #include "dsi_hx8394_evb.h"
+ static struct panel_desc_s panel_desc = {
+-- 
+2.25.1
+
