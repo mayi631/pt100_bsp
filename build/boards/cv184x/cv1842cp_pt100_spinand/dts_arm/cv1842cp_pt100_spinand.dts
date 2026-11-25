@@ -67,42 +67,42 @@
 		button-mode {
 			label = "Mode";
 			linux,code = <KEY_MODE>;
-			press-threshold-microvolt = <0>;
+			press-threshold-microvolt = <35000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-left {
 			label = "Left";
 			linux,code = <KEY_LEFT>;
-			press-threshold-microvolt = <819000>;
+			press-threshold-microvolt = <833000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-up {
 			label = "Up";
 			linux,code = <KEY_UP>;
-			press-threshold-microvolt = <1638000>;
+			press-threshold-microvolt = <1660000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-right {
 			label = "Right";
 			linux,code = <KEY_RIGHT>;
-			press-threshold-microvolt = <2457000>;
+			press-threshold-microvolt = <2479000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-down {
 			label = "Down";
 			linux,code = <KEY_DOWN>;
-			press-threshold-microvolt = <3276000>;
+			press-threshold-microvolt = <3150000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-ok {
 			label = "Ok";
 			linux,code = <KEY_OK>;
-			press-threshold-microvolt = <4000000>;
+			press-threshold-microvolt = <3540000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 	};
@@ -117,14 +117,14 @@
 		button-shot {
 			label = "Shot";
 			linux,code = <KEY_CAMERA>;
-			press-threshold-microvolt = <0>;
+			press-threshold-microvolt = <20000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 
 		button-af {
 			label = "Camera Focus";
 			linux,code = <KEY_CAMERA_FOCUS>;
-			press-threshold-microvolt = <819000>;
+			press-threshold-microvolt = <825000>;
 			debounce-steps = <10>; // 10 次采样值相同才认为按键状态改变
 		};
 
@@ -152,7 +152,7 @@
 		button-menu {
 			label = "Menu";
 			linux,code = <KEY_MENU>;
-			press-threshold-microvolt = <4000000>;
+			press-threshold-microvolt = <1660000>;
 			debounce-steps = <2>; // 2次采样值相同才认为按键状态改变
 		};
 	};

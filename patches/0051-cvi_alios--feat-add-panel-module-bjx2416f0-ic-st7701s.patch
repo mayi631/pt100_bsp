@@ -12,6 +12,8 @@ same-vendor BJX2836F0 module.
 
 - components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h: dev_cfg, hs_timing and
   init commands
+- Use bank 0x10 C7=0x04 with bank 0x00 MADCTL=0x10 for the verified
+  PT100 panel orientation
 - dsi_panels.h: register panel_desc under CONFIG_PANEL_BJX2416F0
 - board_config.h: PANEL_WIDTH/HEIGHT 480x640 for CONFIG_PANEL_BJX2416F0
 
@@ -19,9 +21,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Change-Id: I27b84d2d5d82a35675a333acb6352141c97815ee
 ---
  boards/cv184x_evb/include/board_config.h      |   3 +
- .../cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h     | 112 ++++++++++++++++++
+ .../cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h     | 113 ++++++++++++++++++
  components/cvi_mmf_sdk/cvi_panel/dsi_panels.h |   9 ++
- 3 files changed, 124 insertions(+)
+ 3 files changed, 125 insertions(+)
  create mode 100644 components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
 
 diff --git a/boards/cv184x_evb/include/board_config.h b/boards/cv184x_evb/include/board_config.h
@@ -40,10 +42,10 @@ index d50c8003..11aa1ebb 100644
  #define PANEL_HEIGHT 1280
 diff --git a/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h b/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
 new file mode 100644
-index 00000000..31df8a98
+index 00000000..72d28ad8
 --- /dev/null
 +++ b/components/cvi_mmf_sdk/cvi_panel/dsi_bjx2416f0.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,113 @@
 +#ifndef _MIPI_TX_PARAM_BJX2416F0_H_
 +#define _MIPI_TX_PARAM_BJX2416F0_H_
 +
@@ -101,6 +103,7 @@ index 00000000..31df8a98
 +	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC0, 0x4F, 0x00 } },
 +	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC1, 0x10, 0x0C } },
 +	{.delay = 0, .data_type = 0x29, .size = 3, .data = (CVI_U8[]){ 0xC2, 0x01, 0x14 } },
++	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xC7, 0x04 } },
 +	{.delay = 0, .data_type = 0x15, .size = 2, .data = (CVI_U8[]){ 0xCC, 0x10 } },
 +	{.delay = 0, .data_type = 0x29, .size = 17, .data = (CVI_U8[]){
 +		0xB0, 0x00, 0x0B, 0x13, 0x0D, 0x10, 0x07, 0x02, 0x08, 0x07, 0x1F,
@@ -178,4 +181,3 @@ index 2683ff7d..b391790a 100644
  static struct panel_desc_s panel_desc = {
 -- 
 2.25.1
-
