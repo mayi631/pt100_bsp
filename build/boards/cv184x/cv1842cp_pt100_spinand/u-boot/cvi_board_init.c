@@ -54,8 +54,8 @@ int cvi_board_init(void)
         PINMUX_CONFIG(SD1_D3, PWR_SD1_D3_VO32);
 
         /* disable uart0 */
-        PINMUX_CONFIG(UART0_RX, XGPIOA_17);
-        PINMUX_CONFIG(UART0_TX, XGPIOA_16);
+        // PINMUX_CONFIG(UART0_RX, XGPIOA_17);
+        // PINMUX_CONFIG(UART0_TX, XGPIOA_16);
 
         /* panel */
         PINMUX_CONFIG(SPK_EN, XGPIOA_15); // LCD_RST
