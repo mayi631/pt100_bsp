@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+mcu_addr=${PT100_MCU_ADDR:-0x1c}
+role=/proc/cviusb/otg_role
+case "$1" in
+  host)
+    i2cset -y 0 "$mcu_addr" 0x05 0
+    i2cset -y 0 "$mcu_addr" 0x02 1
+    echo host > "$role"
+    ;;
+  device)
+    echo device > "$role"
+    i2cset -y 0 "$mcu_addr" 0x02 0
+    ;;
+  *) echo "Usage: $0 {host|device}" >&2; exit 1 ;;
+esac

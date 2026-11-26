@@ -28,4 +28,5 @@ then
 sed -i "/debugfs/d" $SYSTEM_DIR/etc/fstab
 fi
 
+rm -f "$SYSTEM_DIR"/system/ko/{8188fu.ko,8189fs.ko,3rd/8189fs.ko}
 du -sh $SYSTEM_DIR/* |sort -rh

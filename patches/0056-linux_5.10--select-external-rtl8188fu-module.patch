@@ -1,0 +1,22 @@
+From: mayi <3363523343@qq.com>
+Date: Thu, 26 Nov 2026 10:32:10 +0800
+Subject: [PATCH] wifi: expose module-only selector for the osdrv RTL8188FU driver
+
+diff --git a/drivers/net/wireless/realtek/Kconfig b/drivers/net/wireless/realtek/Kconfig
+index 4ebdfadbf3234afe5dcf57b25e4ab675036bfbf1..aab29d81ba51976aab21739db07d7c2a3cea0c27 100644
+--- a/drivers/net/wireless/realtek/Kconfig
++++ b/drivers/net/wireless/realtek/Kconfig
+@@ -26,6 +26,13 @@ config RTL8188FU
+       This chip work through USB.
+       You need to say Y if your board use this chip to implement wifi
+ 
++config RTL8188FU_OSDRV
++	tristate "Realtek RTL8188FU USB (osdrv vendor module)"
++	depends on USB && CFG80211 && m && RTL8188FU = n
++	help
++	  Build the vendor v5.15 driver in the SDK osdrv wireless stage.
++	  This and the in-tree RTL8188FU driver both provide 8188fu.ko.
++
+ config RTL8189FS
+     tristate "Realtek 8189F SDIO WiFi"
+     help

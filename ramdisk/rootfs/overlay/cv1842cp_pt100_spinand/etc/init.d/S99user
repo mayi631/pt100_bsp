@@ -47,9 +47,6 @@ case "$1" in
                 $USERDATAPATH/bin/sophcam </dev/null 2>&1 | logger -t sophcam &
         fi
 
-        # run wpa_supplicant after app start
-        wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B
-	wifi-daemon -l info | logger -t wifi &
         ;;
   stop)
         # 必须 -u 写入UTC时间到RTC

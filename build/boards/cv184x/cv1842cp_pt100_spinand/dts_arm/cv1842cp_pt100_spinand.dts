@@ -168,11 +168,11 @@
 };
 
 &wifisd{
-	status = "okay";
+	status = "disabled";
 };
 
 &wifi_pin{
-	poweron-gpio = <&porta 19 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
 };
 
 &i2c0 {
