@@ -1,0 +1,108 @@
+#!/bin/sh
+set -eu
+gadget=/tmp/usb/usb_gadget/cvitek
+preference=/mnt/data/pt100-wifi-enabled
+vbus=/proc/cviusb/vbus
+
+target_mode() {
+    case "$1:$2" in
+        high:*) echo usb ;;
+        low:on) echo wifi ;;
+        low:off) echo off ;;
+        *) return 1 ;;
+    esac
+}
+
+requested() {
+    setting=off
+    [ ! -f "$preference" ] || setting=on
+    read -r level < "$vbus" || return 1
+    target_mode "$level" "$setting"
+}
+
+trace_stage() {
+    read -r uptime rest < /proc/uptime
+    printf '%s %s\n' "$uptime" "$1"
+}
+
+stop_wifi() {
+    for service in wifi-daemon hostapd udhcpd; do
+        killall "$service" 2>/dev/null || :
+    done
+    if pidof wpa_supplicant >/dev/null; then
+        wpa_cli -i wlan0 terminate >/dev/null || killall wpa_supplicant || :
+    fi
+}
+
+stop_adb() {
+    [ -d "$gadget" ] || return 0
+    [ -d "$gadget/functions/ffs.adb" ] || return 1
+    if [ -n "$(cat "$gadget/UDC")" ]; then echo '' > "$gadget/UDC" || return 1; fi
+    /etc/run_usb.sh stop || return 1
+    [ ! -d "$gadget" ]
+}
+
+apply_mode() {
+    case "$1" in
+      wifi)
+        stop_adb || return 1
+        [ "$(requested)" = wifi ] || return 1
+        /etc/pt100-usb-role host || return 1
+        [ -d /sys/module/8188fu ] || insmod /system/ko/3rd/8188fu.ko || return 1
+        retry=0
+        while [ ! -d /sys/class/net/wlan0 ] && [ "$retry" -lt 80 ]; do
+            [ "$(requested)" = wifi ] || return 1
+            usleep 100000; retry=$((retry + 1))
+        done
+        [ -d /sys/class/net/wlan0 ] && [ "$(requested)" = wifi ] || return 1
+        trace_stage wlan0-ready
+        if ! wpa_cli -i wlan0 ping 2>/dev/null | grep -qx PONG; then
+            wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B || return 1
+        fi
+        if ! pidof wifi-daemon >/dev/null; then wifi-daemon -l info 2>&1 | logger -t wifi & fi
+        retry=0
+        while [ "$retry" -lt 25 ]; do
+            [ "$(requested)" = wifi ] || return 1
+            if [ -S /tmp/aicam_wifi.sock ] && wifi-cli enable 1 | grep -q '^OK'; then break; fi
+            usleep 200000; retry=$((retry + 1))
+        done
+        wifi-cli status | grep -q '^OK[[:space:]]STATUS[[:space:]]1' || return 1
+        trace_stage wifi-service-ready
+        pidof dhcpcd >/dev/null || /etc/init.d/S41dhcpcd start || return 1 ;;
+      usb|off)
+        stop_wifi
+        /etc/pt100-usb-role device || return 1
+        i2cset -y 0 "${PT100_MCU_ADDR:-0x1c}" 0x05 1 || return 1
+        if [ "$1" = off ]; then stop_adb; return; fi
+        if [ -L "$gadget/configs/c.1/ffs.adb" ] && [ -n "$(cat "$gadget/UDC")" ] && pidof adbd >/dev/null; then return 0; fi
+        stop_adb && /etc/run_usb.sh probe adb && /etc/run_usb.sh start &&
+            [ -n "$(cat "$gadget/UDC")" ] && pidof adbd >/dev/null ;;
+    esac
+}
+
+case "${1:-}" in
+  wifi-on) touch "$preference" ;;
+  wifi-off) rm -f "$preference" ;;
+  status) printf 'vbus=%s target=%s active=%s\n' "$(cat "$vbus")" "$(requested)" "$(cat /run/pt100-mode.state 2>/dev/null || echo pending)" ;;
+  watch) setsid "$0" monitor </dev/null >/run/pt100-mode.log 2>&1 & ;;
+  monitor)
+    exec 8>/run/pt100-mode.lock; flock -n 8 || exit 0
+    active=unknown; previous=unknown
+    while :; do
+        target=$(requested) || target=unknown
+        if [ "$target" != unknown ] && [ "$target" = "$previous" ] && [ "$target" != "$active" ]; then
+            active=unknown
+            echo switching > /run/pt100-mode.state
+            trace_stage "switch-to-$target"
+            if apply_mode "$target" 8>&-; then active=$target; echo "$active" > /run/pt100-mode.state
+            elif [ "$(requested)" = "$target" ]; then
+                echo "Failed to switch to $target" >&2
+                for retry in 1 2 3 4 5 6 7 8 9 10; do
+                    usleep 200000; [ "$(requested)" = "$target" ] || break
+                done
+            fi
+        fi
+        previous=$target; usleep 200000
+    done ;;
+  *) echo "Usage: $0 {status|wifi-on|wifi-off|watch}" >&2; exit 2 ;;
+esac
